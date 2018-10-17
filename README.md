@@ -46,3 +46,4 @@ If you want to see the original author's code, please refer to this [link](https
 
 ## Author
 Junho Kim
+# Triple-GAN-paddlepaddle
