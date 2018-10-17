@@ -1,5 +1,5 @@
-# TripleGAN-Tensorflow
-Simple Tensorflow implementation of [Triple Generative Adversarial Nets](https://arxiv.org/pdf/1703.02291.pdf)(Triple-GAN)
+# TripleGAN-paddlepaddle
+Simple paddlepaddle implementation of [Triple Generative Adversarial Nets](https://arxiv.org/pdf/1703.02291.pdf)(Triple-GAN)
 
 If you want to see the original author's code, please refer to this [link](https://github.com/zhenxuan00/triple-gan)
 
@@ -40,10 +40,10 @@ If you want to see the original author's code, please refer to this [link](https
 ## Related works
 * [CycleGAN](https://github.com/taki0112/CycleGAN-Tensorflow)
 * [DiscoGAN](https://github.com/taki0112/DiscoGAN-Tensorflow)
+* [TripleGAN-Tensorflow](https://github.com/taki0112/TripleGAN-Tensorflow)
 
 ## Reference
 * [tensorflow-generative-model-collections](https://github.com/hwalsuklee/tensorflow-generative-model-collections)
 
 ## Author
-Junho Kim
-# Triple-GAN-paddlepaddle
+Todd
