@@ -30,6 +30,9 @@ def bn(x, name=None, act='relu'):
         name=name,
         act=act)
 
+def he_init(input, output):
+    fluid
+
 
 def conv(x, num_filters, name=None, act=None):
     if name is None:
