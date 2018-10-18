@@ -30,8 +30,9 @@ def bn(x, name=None, act='relu'):
         name=name,
         act=act)
 
-def he_init(input, output):
-    fluid
+def wn(name) :
+    return fluid.WeightNormParamAttr(name=name+'_weight_norm_param',
+                                        initializer=fluid.initializer.MSRAInitializer())
 
 
 def conv(x, num_filters, name=None, act=None):
@@ -72,6 +73,7 @@ def conv2d( input,
             num_filters,
             filter_size,
             stride=1,
+            param_attr=None,
             padding="SAME",
             stddev=0.02,
             act=None,
@@ -96,9 +98,6 @@ def conv2d( input,
         width_padding = 0
 
     padding = [height_padding, width_padding]
-    param_attr = fluid.ParamAttr(
-        name=name + "_w",
-        initializer=fluid.initializer.TruncatedNormal(scale=stddev))
     bias_attr = fluid.ParamAttr(
         name=name + "_b", initializer=fluid.initializer.Constant(0.0))
 
@@ -150,6 +149,7 @@ def deconv( input,
             num_filters,
             filter_size,
             stride=1,
+            param_attr=None,
             padding="SAME",
             stddev=0.02,
             act=None,
@@ -174,9 +174,6 @@ def deconv( input,
         width_padding = 0
 
     padding = [height_padding, width_padding]
-    param_attr = fluid.ParamAttr(
-        name=name + "_w",
-        initializer=fluid.initializer.TruncatedNormal(scale=stddev))
     bias_attr = fluid.ParamAttr(
         name=name + "_b", initializer=fluid.initializer.Constant(0.0))
 

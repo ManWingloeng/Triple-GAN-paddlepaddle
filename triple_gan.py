@@ -54,9 +54,18 @@ class triple_gan(object):
             y = reshape(y_, [-1, 1, 1, self.y_dim]) #ten classes
             x = conv_cond_concat(x, y)
             #weight norm?????????
-            x = conv2d(x, num_filters=32, filter_size=[3,3], name='conv1', act='lrelu')
-            # x = conv_cond_concat(x,y)
-            x = conv2d(x, num_filters=32, filter_size=[3,3], stride=2, name='conv2', act='lrelu')
+            x = conv2d(x, num_filters=32, filter_size=[3,3], param_attr=wn('conv1'), name='conv1', act='lrelu')
+            x = conv_cond_concat(x,y)
+            x = conv2d(x, num_filters=32, filter_size=[3,3], stride=2, param_attr=wn('conv2'), name='conv2', act='lrelu')
             x = dropout(x, dropout_prob=0.2)
 
-            x = conv2d(x, num_filters=64, filter_size=[3,3], name='conv3', act='lrelu')
+            x = conv2d(x, num_filters=64, filter_size=[3,3], param_attr=wn('conv3'), name='conv3', act='lrelu')
+            x = conv2d(x, num_filters=64, filter_size=[3,3], stride=2, param_attr=wn('conv4'), name='conv4', act='lrelu')
+            x = dropout(x, dropout_prob=0.2)
+
+            x = conv2d(x, num_filters=128, filter_size=[3,3], param_attr=wn('conv5'), name='conv5', act='lrelu')
+            x = conv2d(x, num_filters=128, filter_size=[3,3], param_attr=wn('conv6'), name='conv6', act='lrelu')
+
+            x = Global_Average_Pooling(x)
+            #IcGAN 每一层都要concat一下
+
