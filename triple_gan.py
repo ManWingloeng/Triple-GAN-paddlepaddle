@@ -48,24 +48,79 @@ class triple_gan(object):
         else :
             raise NotImplementedError
 
-    def D(self, x, y_, name='discriminator', is_test=False):
+    def D(self, x, y_, name='Discriminator', is_test=False):
         with fluid.unique_name.guard(name+'_'):
             x = dropout(x, dropout_prob=0.2, is_test=False)
             y = reshape(y_, [-1, 1, 1, self.y_dim]) #ten classes
             x = conv_cond_concat(x, y)
-            #weight norm?????????
+            #weight norm in paddlepaddle has finished
             x = conv2d(x, num_filters=32, filter_size=[3,3], param_attr=wn('conv1'), name='conv1', act='lrelu')
-            x = conv_cond_concat(x,y)
+            x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=32, filter_size=[3,3], stride=2, param_attr=wn('conv2'), name='conv2', act='lrelu')
             x = dropout(x, dropout_prob=0.2)
+            x = conv_cond_concat(x, y)
 
             x = conv2d(x, num_filters=64, filter_size=[3,3], param_attr=wn('conv3'), name='conv3', act='lrelu')
+            x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=64, filter_size=[3,3], stride=2, param_attr=wn('conv4'), name='conv4', act='lrelu')
             x = dropout(x, dropout_prob=0.2)
+            x = conv_cond_concat(x, y)
 
             x = conv2d(x, num_filters=128, filter_size=[3,3], param_attr=wn('conv5'), name='conv5', act='lrelu')
+            x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=128, filter_size=[3,3], param_attr=wn('conv6'), name='conv6', act='lrelu')
-
+            x = conv_cond_concat(x, y)
+            
             x = Global_Average_Pooling(x)
+            x = flatten(x)
+            x = concat(x, y_)
             #IcGAN 每一层都要concat一下
+
+            # MLP??
+            x_logit = fc(x, 1, name='fc')
+            out = sigmod(x_logit, name='sigmod')
+
+            return out, x_logit, x
+
+
+    def G(self, z, y, name='Generator', is_test=False):
+        with fluid.unique_name.guard(name+'_'):
+            zy=concat(z,y)
+            zy = fc(zy, 8192, name='fc', act='relu')
+            zy = bn(zy, name='bn', act='relu')
+            zy = reshape(zy, [-1, 4, 4, 512])
+            y = reshape(y, [-1, 1, 1, self.y_dim])
+            zy = conv_cond_concat(zy, y)
+            zy = deconv(zy, num_filters=256, filter_size=[5, 5], stride=2, name='deconv1')
+            zy = bn(zy, act='relu')
+
+            zy = conv_cond_concat(zy, y)
+            zy = deconv(zy, num_filters=128, filter_size=[5, 5], stride= 2, name='deconv2')
+            zy = bn(zy, act='relu')
+
+            zy = conv_cond_concat(zy, y)
+            zy = deconv(zy, num_filters=3, filter_size=[5, 5], stride=2, 
+                            param_attr=wn(name='deconv3'), name='deconv3', act='tanh')
+            
+            return zy
+
+    def C(self, x, name='Classifier', is_test=False):
+        x = gaussian_noise_layer(x, std=0.15)
+        x = conv2d(x, num_filters=128, filter_size=[3,3], act='lrelu', param_attr=wn('conv1'), name='conv1')
+        x = conv2d(x, num_filters=128, filter_size=[3,3], act='lrelu', param_attr=wn('conv2'), name='conv2')
+        x = conv2d(x, num_filters=128, filter_size=[3,3], act='lrelu', param_attr=wn('conv3'), name='conv3')
+        x = max_pooling(x , pool_size=[2,2])
+        x = dropout(x, dropout_prob=0.5)
+
+        x = conv2d(x, num_filters=256, filter_size=[3,3], act='lrelu', param_attr=wn('conv4'), name='conv4')
+        x = conv2d(x, num_filters=256, filter_size=[3,3], act='lrelu', param_attr=wn('conv5'), name='conv5')
+        x = conv2d(x, num_filters=256, filter_size=[3,3], act='lrelu', param_attr=wn('conv5'), name='conv5')
+        x = max_pooling(x , pool_size=[2,2])
+        x = dropout(x, dropout_prob=0.5)
+
+        x = conv2d(x, num_filters=512, filter_size=[3,3], act='lrelu', param_attr=wn('conv5'), name='conv5')
+        x = nin(x, 256)
+
+
+
 

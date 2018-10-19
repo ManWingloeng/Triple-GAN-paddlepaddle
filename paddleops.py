@@ -58,16 +58,22 @@ def fc(x, num_filters, name=None, act=None):
                            param_attr=name + 'w',
                            bias_attr=name + 'b')
 
-
+def sigmod(x, name=None):
+    return fluid.layers.sigmoid(x, name=name)
 
 
 
 def conv_cond_concat(x, y):
     """Concatenate conditioning vector on feature map axis."""
     ones = fluid.layers.fill_constant_batch_size_like(
-        x, [-1, y.shape[1], x.shape[2], x.shape[3]], "float32", 1.0)
-    return fluid.layers.concat([x, ones * y], 1)
+        x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", 1.0)
+    return fluid.layers.concat([x, ones * y], axis=3)
 
+def concat(x, axis=1):
+    return fluid.layers.concat(x, axis=axis)
+
+def flatten(x, axis=1):
+    return fluid.layers.flatten(x, axis=axis)
 
 def conv2d( input,
             num_filters,
@@ -75,7 +81,6 @@ def conv2d( input,
             stride=1,
             param_attr=None,
             padding="SAME",
-            stddev=0.02,
             act=None,
             leak=0.2,
             name="conv2d",
@@ -151,7 +156,6 @@ def deconv( input,
             stride=1,
             param_attr=None,
             padding="SAME",
-            stddev=0.02,
             act=None,
             leak=0.2,
             name="deconv",
