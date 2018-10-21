@@ -49,7 +49,7 @@ def conv(x, num_filters, name=None, act=None):
         act=act)
 
 
-def fc(x, num_filters, name=None, act=None):
+def fc(x, num_filters, param_attr=None, name=None, act=None):
     if name is None:
         name = get_parent_function_name()
     return fluid.layers.fc(input=x,
@@ -58,9 +58,8 @@ def fc(x, num_filters, name=None, act=None):
                            param_attr=name + 'w',
                            bias_attr=name + 'b')
 
-def sigmod(x, name=None):
+def sigmoid(x, name=None):
     return fluid.layers.sigmoid(x, name=name)
-
 
 
 def conv_cond_concat(x, y):
@@ -249,8 +248,6 @@ def rampdown(epoch):
 def reshape(x, shape):
     return fluid.layers.reshape(x, shape)
 
-def concat(x, axis=1):
-    return fluid.layers.concat(x, axis=axis)
 
 def max_pooling(x, pool_size=-1, stride=1, padding=0):
     return fluid.layers.pool2d(x, pool_size=pool_size, stride=stride, pool_padding=padding)
@@ -262,9 +259,16 @@ def gaussian_noise_layer(x, std=0.15):
     noise = fluid.layers.gaussian_random(shape=fluid.layers.shape(x), mean=0.0, std=std)
     return x + noise
 
-def nin(x, num_units, name='nin'):
+def nin(x, num_units, name='nin', param_attr=None, act=None):
     """ a network in network layer (1x1 CONV) """
     s = list(map(int, x.get_shape()))
     x = reshape(x, [np.prod(s[:-1]),s[-1]])
-    x = fc(x, num_units, name=name)
+    if act=='lrelu':
+        x = fc(x, num_units, name=name, param_attr=param_attr)
+        x = lrelu(x)
+    else:
+        x = fc(x, num_units, name=name, param_attr=param_attr, act=act)
     return reshape(x, s[:-1]+[num_units])
+
+def softmax(x):
+    return fluid.layers.softmax(x)
