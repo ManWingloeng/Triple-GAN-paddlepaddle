@@ -37,6 +37,8 @@ class triple_gan(object):
             self.alpha_cla_adv = 0.01
             self.init_alpha_p = 0.0 # 0.1, 0.03
             self.apply_alpha_p = 0.1
+            self.alpha_p = 0.1 ##??
+
             self.apply_epoch = 200 # 200, 300
             self.decay_epoch = 50
 
@@ -198,10 +200,10 @@ class triple_gan(object):
 
             # output of D for unlabelled imagesc
             Y_c = self.C(self.unlabelled_inputs, is_test=False)
-            D_cla, D_cla_logits, _ = self.D(self.unlabelled_inputs, Y_c, is_training=True, reuse=True)
+            # D_cla, D_cla_logits, _ = self.D(self.unlabelled_inputs, Y_c, is_test=False)
 
             # output of C for fake images
-            C_fake_logits = self.C(G, is_training=True)
+            C_fake_logits = self.C(G_train, is_test=False)
             R_P = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_fake_logits))
 
             max_c = fluid.layers.cast(fluid.layers.argmax(Y_c, axis=1), dtype='float32')
