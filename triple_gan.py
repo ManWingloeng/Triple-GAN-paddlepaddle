@@ -189,25 +189,27 @@ class triple_gan(object):
 
         with fluid.program_guard(c_program):
             G_train = self.G(self.z, self.y, is_test=False)
-            D_fake, D_fake_logits, _ = self.D(G_train, self.y)
+            # D_fake, D_fake_logits, _ = self.D(G_train, self.y)
 
-            ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
-            ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
-            self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
+            # ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
+            # ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
+            # self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
 
             C_real_logits = self.C(self.inputs, is_test=False)
             R_L = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_real_logits))
 
             # output of D for unlabelled imagesc
             Y_c = self.C(self.unlabelled_inputs, is_test=False)
-            # D_cla, D_cla_logits, _ = self.D(self.unlabelled_inputs, Y_c, is_test=False)
+            D_cla, D_cla_logits, _ = self.D(self.unlabelled_inputs, Y_c, is_test=False)
+            ones_D_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=1)
+
 
             # output of C for fake images
             C_fake_logits = self.C(G_train, is_test=False)
             R_P = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_fake_logits))
 
             max_c = fluid.layers.cast(fluid.layers.argmax(Y_c, axis=1), dtype='float32')
-            c_loss_dis = fluid.layers.reduce_mean(max_c * fluid.layers.softmax_with_cross_entropy(logits=D_cla_logits, label=tf.ones_like(D_cla)))
+            c_loss_dis = fluid.layers.reduce_mean(max_c * fluid.layers.softmax_with_cross_entropy(logits=D_cla_logits, label=ones_D_cla))
             # self.c_loss = alpha * c_loss_dis + R_L + self.alpha_p*R_P
 
             # R_UL = self.unsup_weight * tf.reduce_mean(tf.squared_difference(Y_c, self.unlabelled_inputs_y))
@@ -221,6 +223,28 @@ class triple_gan(object):
             ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
             ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
             self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
+
+        opt = fluid.optimizer.Adam(self.learning_rate)
+
+        opt.minimize(loss=self.d_loss)
+
+        c_parameters = [p.name for p in c_program.global_block().all_parameters()]
+        opt.minimize(loss=self.c_loss, parameter_list=c_parameters)
+
+        g_parameters = [p.name for p in g_program.global_block().all_parameters()]
+        opt.minimize(loss=self.g_loss, parameter_list=g_parameters)
+
+        place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
+        exe = fluid.Executor(place)
+        exe.run(fluid.default_startup_program())
+
+
+
+
+
+
+
+        
 
 
 
