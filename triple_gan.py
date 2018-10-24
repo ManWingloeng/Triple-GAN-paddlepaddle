@@ -6,10 +6,9 @@ import paddle
 
 
 class triple_gan(object):
-    def __init__(self, sess, epoch, batch_size, unlabel_batch_size, z_dim, dataset_name, n, gan_lr, cla_lr, checkpoint_dir, result_dir, log_dir):
-        self.sess = sess
+    def __init__(self, epoch, batch_size, unlabel_batch_size, z_dim, dataset_name, n, gan_lr, cla_lr, result_dir, log_dir):
         self.dataset_name = dataset_name
-        self.checkpoint_dir = checkpoint_dir
+        # self.checkpoint_dir = checkpoint_dir
         self.result_dir = result_dir
         self.log_dir = log_dir
         self.epoch = epoch
@@ -27,6 +26,9 @@ class triple_gan(object):
             self.y_dim = 10
             self.c_dim = 3
 
+
+            self.gan_lr = gan_lr
+            self.cla_lr = cla_lr
             self.learning_rate = gan_lr # 3e-4, 1e-3
             self.cla_learning_rate = cla_lr # 3e-3, 1e-2 ?
             self.GAN_beta1 = 0.5
@@ -224,19 +226,167 @@ class triple_gan(object):
             ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
             self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
 
-        opt = fluid.optimizer.Adam(self.learning_rate)
 
-        opt.minimize(loss=self.d_loss)
+        fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.d_loss)
 
         c_parameters = [p.name for p in c_program.global_block().all_parameters()]
-        opt.minimize(loss=self.c_loss, parameter_list=c_parameters)
+        fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.c_loss, parameter_list=c_parameters)
 
         g_parameters = [p.name for p in g_program.global_block().all_parameters()]
-        opt.minimize(loss=self.g_loss, parameter_list=g_parameters)
+        fluid.optimizer.Adam(self.cla_lr, beta1=self.beta1, beta2=self.beta2, epsilon=self.epsilon).minimize(loss=self.g_loss, parameter_list=g_parameters)
 
         place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
         exe = fluid.Executor(place)
         exe.run(fluid.default_startup_program())
+
+        start_epoch = 0
+
+        gan_lr = self.learning_rate
+        cla_lr = self.cla_learning_rate
+
+        # graph inputs for visualize training results
+        self.sample_z = np.random.uniform(-1, 1, size=(self.visual_num, self.z_dim))
+        self.test_codes = self.data_y[0:self.visual_num]
+
+
+        start_time = time.time()
+        for epoch in range(start_epoch, self.epoch):
+            if epoch >= self.decay_epoch :
+                gan_lr *= 0.995
+                cla_lr *= 0.99
+                print("**** learning rate DECAY ****")
+                print(gan_lr)
+                print(cla_lr)
+
+            if epoch >= self.apply_epoch :
+                alpha_p = self.apply_alpha_p
+            else :
+                alpha_p = self.init_alpha_p
+
+            # rampup_value = rampup(epoch - 1)
+            # unsup_weight = rampup_value * 100.0 if epoch > 1 else 0
+
+            
+            epoch_d_loss = []
+            epoch_c_loss = []
+            epoch_g_loss = []
+
+        # get batch data
+            for idx in range(0, self.num_batches):
+                batch_images = self.data_X[idx * self.batch_size : (idx + 1) * self.batch_size]
+                batch_codes = self.data_y[idx * self.batch_size : (idx + 1) * self.batch_size]
+
+                batch_unlabelled_images = self.unlabelled_X[idx * self.unlabelled_batch_size : (idx + 1) * self.unlabelled_batch_size]
+                batch_unlabelled_images_y = self.unlabelled_y[idx * self.unlabelled_batch_size : (idx + 1) * self.unlabelled_batch_size]
+
+                batch_z = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
+
+                feed_dict = {
+                    self.inputs: batch_images, self.y: batch_codes,
+                    self.unlabelled_inputs: batch_unlabelled_images,
+                    self.unlabelled_inputs_y: batch_unlabelled_images_y,
+                    self.z: batch_z, self.alpha_p: alpha_p,
+                    self.gan_lr: gan_lr, self.cla_lr: cla_lr
+                    # self.unsup_weight : unsup_weight
+                }
+                # update D network
+                # _, summary_str, d_loss = self.sess.run([self.d_optim, self.d_sum, self.d_loss], feed_dict=feed_dict)
+                # self.writer.add_summary(summary_str, counter)
+                d_loss = exe.run(d_program, feed=feed_dict, fetch_list={self.d_loss})
+                g_loss = exe.run(g_program, feed=feed_dict, fetch_list={self.g_loss})
+                c_loss = exe.run(c_program, feed=feed_dict, fetch_list={self.c_loss})
+
+
+                # # update G network
+                # _, summary_str_g, g_loss = self.sess.run([self.g_optim, self.g_sum, self.g_loss], feed_dict=feed_dict)
+                # self.writer.add_summary(summary_str_g, counter)
+
+                # # update C network
+                # _, summary_str_c, c_loss = self.sess.run([self.c_optim, self.c_sum, self.c_loss], feed_dict=feed_dict)
+                # self.writer.add_summary(summary_str_c, counter)
+
+                # display training status
+                # counter += 1
+                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f, c_loss: %.8f" \
+                      % (epoch, idx, self.num_batches, time.time() - start_time, d_loss, g_loss, c_loss))
+
+                # save training results for every 100 steps
+                """
+                if np.mod(counter, 100) == 0:
+                    samples = self.sess.run(self.fake_images,
+                                            feed_dict={self.z: self.sample_z, self.y: self.test_codes})
+                    image_frame_dim = int(np.floor(np.sqrt(self.visual_num)))
+                    save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
+                                './' + check_folder(
+                                    self.result_dir + '/' + self.model_dir) + '/' + self.model_name + '_train_{:02d}_{:04d}.png'.format(
+                                    epoch, idx))
+                """
+
+            # classifier test
+            # test_acc = 0.0
+
+            # for idx in range(10) :
+            #     test_batch_x = self.test_X[idx * self.test_batch_size : (idx+1) * self.test_batch_size]
+            #     test_batch_y = self.test_y[idx * self.test_batch_size : (idx+1) * self.test_batch_size]
+
+            #     acc_ = self.sess.run(self.accuracy, feed_dict={
+            #         self.test_inputs: test_batch_x,
+            #         self.test_label: test_batch_y
+            #     })
+
+            #     test_acc += acc_
+            # test_acc /= 10
+
+            # summary_test = tf.Summary(value=[tf.Summary.Value(tag='test_accuracy', simple_value=test_acc)])
+            # self.writer.add_summary(summary_test, epoch)
+
+            # line = "Epoch: [%2d], test_acc: %.4f\n" % (epoch, test_acc)
+            # print(line)
+            # lr = "{} {}".format(gan_lr, cla_lr)
+            # with open('logs.txt', 'a') as f:
+            #     f.write(line)
+            # with open('lr_logs.txt', 'a') as f :
+            #     f.write(lr+'\n')
+
+            # After an epoch, start_batch_id is set to zero
+            # non-zero value is only for the first epoch after loading pre-trained model
+            start_batch_id = 0
+
+            # save model
+            # self.save(self.checkpoint_dir, counter)
+
+            # show temporal results
+            # self.visualize_results(epoch)
+
+            # save model for final step
+        # self.save(self.checkpoint_dir, counter)
+
+
+
+
+
+
+ 
+
+
+
+if __name__ == "__main__":
+
+
+    epoch = 0
+    batch_size = 0
+    unlabel_batch_size = 0
+    z_dim = 0
+    dataset_name = 0
+    n = 0
+    gan_lr = 0
+    cla_lr = 0
+    # checkpoint_dir = 0
+    result_dir = 0
+    log_dir = 0
+    GAN = triple_gan(epoch, batch_size, unlabel_batch_size, z_dim, dataset_name, n, gan_lr, cla_lr, result_dir, log_dir)
+
+
 
 
 

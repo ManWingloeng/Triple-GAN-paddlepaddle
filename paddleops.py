@@ -229,13 +229,13 @@ def lrelu(x, leak=0.2, name="lrelu"):
 def dropout(x, dropout_prob, is_test=False, seed=None, name="dropout"):
     return fluid.layers.dropout(x, dropout_prob, is_test, seed, name)
 
-def rampup(epoch):
-    if epoch < 80:
-        p = max(0.0, float(epoch)) / float(80)
-        p = 1.0 - p
-        return math.exp(-p*p*5.0)
-    else:
-        return 1.0
+# def rampup(epoch):
+#     if epoch < 80:
+#         p = max(0.0, float(epoch)) / float(80)
+#         p = 1.0 - p
+#         return math.exp(-p*p*5.0)
+#     else:
+#         return 1.0
 
 def rampdown(epoch):
     if epoch >= (300 - 50):
