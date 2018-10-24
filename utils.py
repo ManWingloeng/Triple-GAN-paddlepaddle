@@ -1,11 +1,11 @@
 import scipy.misc, os
 import numpy as np
-import tensorflow as tf
-import tensorflow.contrib.slim as slim
+# import tensorflow as tf
+# import tensorflow.contrib.slim as slim
 
-def show_all_variables():
-    model_vars = tf.trainable_variables()
-    slim.model_analyzer.analyze_vars(model_vars, print_info=True)
+# def show_all_variables():
+#     model_vars = tf.trainable_variables()
+#     slim.model_analyzer.analyze_vars(model_vars, print_info=True)
 
 def check_folder(log_dir):
     if not os.path.exists(log_dir):

@@ -3,7 +3,7 @@ from paddleops import *
 import time
 import paddle.fluid as fluid
 import paddle
-
+from utils import *
 
 class triple_gan(object):
     def __init__(self, epoch, batch_size, unlabel_batch_size, z_dim, dataset_name, n, gan_lr, cla_lr, result_dir, log_dir):
@@ -196,7 +196,7 @@ class triple_gan(object):
             # ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
             # ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
             # self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
-
+            
             C_real_logits = self.C(self.inputs, is_test=False)
             R_L = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_real_logits))
 
@@ -220,6 +220,7 @@ class triple_gan(object):
 
         with fluid.program_guard(g_program):
             G_train = self.G(self.z, self.y, is_test=False)
+            self.infer_program = g_program.clone(for_test=True)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False)
 
             ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
@@ -236,8 +237,8 @@ class triple_gan(object):
         fluid.optimizer.Adam(self.cla_lr, beta1=self.beta1, beta2=self.beta2, epsilon=self.epsilon).minimize(loss=self.g_loss, parameter_list=g_parameters)
 
         place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
-        exe = fluid.Executor(place)
-        exe.run(fluid.default_startup_program())
+        self.exe = fluid.Executor(place)
+        self.exe.run(fluid.default_startup_program())
 
         start_epoch = 0
 
@@ -292,9 +293,9 @@ class triple_gan(object):
                 # update D network
                 # _, summary_str, d_loss = self.sess.run([self.d_optim, self.d_sum, self.d_loss], feed_dict=feed_dict)
                 # self.writer.add_summary(summary_str, counter)
-                d_loss = exe.run(d_program, feed=feed_dict, fetch_list={self.d_loss})
-                g_loss = exe.run(g_program, feed=feed_dict, fetch_list={self.g_loss})
-                c_loss = exe.run(c_program, feed=feed_dict, fetch_list={self.c_loss})
+                d_loss = self.exe.run(d_program, feed=feed_dict, fetch_list={self.d_loss})
+                g_loss = self.exe.run(g_program, feed=feed_dict, fetch_list={self.g_loss})
+                c_loss = self.exe.run(c_program, feed=feed_dict, fetch_list={self.c_loss})
 
 
                 # # update G network
@@ -313,7 +314,7 @@ class triple_gan(object):
                 # save training results for every 100 steps
                 """
                 if np.mod(counter, 100) == 0:
-                    samples = self.sess.run(self.fake_images,
+                    samples = self.sess.run(self.infer_program,
                                             feed_dict={self.z: self.sample_z, self.y: self.test_codes})
                     image_frame_dim = int(np.floor(np.sqrt(self.visual_num)))
                     save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
@@ -360,6 +361,55 @@ class triple_gan(object):
 
             # save model for final step
         # self.save(self.checkpoint_dir, counter)
+    def visualize_results(self, epoch):
+        # tot_num_samples = min(self.sample_num, self.batch_size)
+        image_frame_dim = int(np.floor(np.sqrt(self.visual_num)))
+        z_sample = np.random.uniform(-1, 1, size=(self.visual_num, self.z_dim))
+
+        """ random noise, random discrete code, fixed continuous code """
+        y = np.random.choice(self.len_discrete_code, self.visual_num)
+        # Generated 10 labels with batch_size
+        y_one_hot = np.zeros((self.visual_num, self.y_dim))
+        y_one_hot[np.arange(self.visual_num), y] = 1
+
+        samples = self.exe.run(self.infer_program, feed={self.visual_z: z_sample, self.visual_y: y_one_hot})
+
+        save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
+                    check_folder(
+                        self.result_dir + '/' + self.model_dir + '/all_classes') + '/' + self.model_name + '_epoch%03d' % epoch + '_test_all_classes.png')
+
+        """ specified condition, random noise """
+        n_styles = 10  # must be less than or equal to self.batch_size
+
+        np.random.seed()
+        si = np.random.choice(self.visual_num, n_styles)
+
+        for l in range(self.len_discrete_code):
+            y = np.zeros(self.visual_num, dtype=np.int64) + l
+            y_one_hot = np.zeros((self.visual_num, self.y_dim))
+            y_one_hot[np.arange(self.visual_num), y] = 1
+
+            samples = self.exe.run(self.infer_program, feed={self.visual_z: z_sample, self.visual_y: y_one_hot})
+            save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
+                        check_folder(
+                            self.result_dir + '/' + self.model_dir + '/class_%d' % l) + '/' + self.model_name + '_epoch%03d' % epoch + '_test_class_%d.png' % l)
+
+            samples = samples[si, :, :, :]
+
+            if l == 0:
+                all_samples = samples
+            else:
+                all_samples = np.concatenate((all_samples, samples), axis=0)
+
+        """ save merged images to check style-consistency """
+        canvas = np.zeros_like(all_samples)
+        for s in range(n_styles):
+            for c in range(self.len_discrete_code):
+                canvas[s * self.len_discrete_code + c, :, :, :] = all_samples[c * n_styles + s, :, :, :]
+
+        save_images(canvas, [n_styles, self.len_discrete_code],
+                    check_folder(
+                        self.result_dir + '/' + self.model_dir + '/all_classes_style_by_style') + '/' + self.model_name + '_epoch%03d' % epoch + '_test_all_classes_style_by_style.png')
 
 
 
