@@ -61,12 +61,19 @@ def fc(x, num_filters, param_attr=None, name=None, act=None):
 def sigmoid(x, name=None):
     return fluid.layers.sigmoid(x, name=name)
 
+def ones(shape, dtype='float32'):
+    return fluid.layers.ones(shape, dtype)
+
+def zeros(shape, dtype='float32'):
+    return fluid.layers.zeros(shape, dtype)
 
 def conv_cond_concat(x, y):
     """Concatenate conditioning vector on feature map axis."""
-    ones = fluid.layers.fill_constant_batch_size_like(
-        x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", 1.0)
-    return fluid.layers.concat([x, ones * y], axis=3)
+    # ones = fluid.layers.fill_constant_batch_size_like(
+    #     x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", 1.0)
+    return fluid.layers.concat([x, y * ones([x.shape[0], x.shape[1], x.shape[2], y.shape[3]])], axis=3)
+
+
 
 def concat(x, axis=1):
     return fluid.layers.concat(x, axis=axis)

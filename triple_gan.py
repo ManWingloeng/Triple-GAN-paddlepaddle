@@ -1,3 +1,5 @@
+#-*- coding=utf-8 -*-
+
 import cifar10
 from paddleops import *
 import time
@@ -139,6 +141,12 @@ class triple_gan(object):
         return fluid.layers.mean(
             fluid.layers.sigmoid_cross_entropy_with_logits(
                 x=x, label=label))
+    
+    @property
+    def model_dir(self):
+        return "{}_{}_{}_{}".format(
+            self.model_name, self.dataset_name,
+            self.batch_size, self.z_dim)
 
     def train(self):
         image_dims = [self.input_height, self.input_width, self.c_dim]
@@ -148,20 +156,21 @@ class triple_gan(object):
         alpha = self.alpha
         alpha_cla_adv = self.alpha_cla_adv
 
-        # images
-        self.inputs = fluid.layers.data(shape=[bs] + image_dims, name='real_images')
-        self.unlabelled_inputs = fluid.layers.data(shape=[unlabel_bs] + image_dims, name='unlabelled_images')
-        self.test_inputs = fluid.layers.data(shape=[test_bs] + image_dims, name='test_images')
+        def declare_data(self):
+            # images
+            self.inputs = fluid.layers.data(shape=[bs] + image_dims, name='real_images')
+            self.unlabelled_inputs = fluid.layers.data(shape=[unlabel_bs] + image_dims, name='unlabelled_images')
+            self.test_inputs = fluid.layers.data(shape=[test_bs] + image_dims, name='test_images')
 
-        # labels
-        self.y = fluid.layers.data(shape=[bs, self.y_dim], name='y')
-        self.unlabelled_inputs_y = fluid.layers.data(shape=[unlabel_bs, self.y_dim], name='unlabelled_images_y')
-        self.test_label = fluid.layers.data(shape=[test_bs, self.y_dim], name='test_label')
-        self.visual_y = fluid.layers.data(shape=[self.visual_num, self.y_dim], name='visual_y')
+            # labels
+            self.y = fluid.layers.data(shape=[bs, self.y_dim], name='y')
+            self.unlabelled_inputs_y = fluid.layers.data(shape=[unlabel_bs, self.y_dim], name='unlabelled_images_y')
+            self.test_label = fluid.layers.data(shape=[test_bs, self.y_dim], name='test_label')
+            self.visual_y = fluid.layers.data(shape=[self.visual_num, self.y_dim], name='visual_y')
 
-        # noises
-        self.z = fluid.layers.data(shape=[bs, self.z_dim], name='z')
-        self.visual_z = fluid.layers.data(shape=[self.visual_num, self.z_dim], name='visual_z')
+            # noises
+            self.z = fluid.layers.data(shape=[bs, self.z_dim], name='z')
+            self.visual_z = fluid.layers.data(shape=[self.visual_num, self.z_dim], name='visual_z')
 
 
         d_program = fluid.Program()
@@ -169,16 +178,19 @@ class triple_gan(object):
         c_program = fluid.Program()
 
         with fluid.program_guard(d_program):
-
+            declare_data(self)
             D_real, D_real_logits, _ = self.D(self.inputs, self.y, is_test=False)
             G_train = self.G(self.z, self.y, is_test=False)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False)
             D_cla, D_cla_logits = self.C(self.unlabelled_inputs, is_test=False)
 
 
-            ones_real = fluid.layers.fill_constant_batch_size_like(D_real, shape=[-1, 1], dtype='float32', value=1)
-            zeros_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
-            zeros_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=1)
+            # ones_real = fluid.layers.fill_constant_batch_size_like(D_real, shape=[-1, 1], dtype='float32', value=1)
+            # zeros_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
+            # zeros_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=1)
+            ones_real = ones(D_real.shape)
+            zeros_fake = zeros(D_fake.shape)
+            zeros_cla = zeros(D_cla.shape)
 
             ce_real = fluid.layers.sigmoid_cross_entropy_with_logits(x=D_real_logits, label=ones_real)
             ce_fake = fluid.layers.sigmoid_cross_entropy_with_logits(x=D_fake_logits, label=zeros_fake)
@@ -190,6 +202,7 @@ class triple_gan(object):
             self.d_loss = d_loss_real + d_loss_fake + d_loss_cla
 
         with fluid.program_guard(c_program):
+            declare_data(self)
             G_train = self.G(self.z, self.y, is_test=False)
             # D_fake, D_fake_logits, _ = self.D(G_train, self.y)
 
@@ -219,11 +232,13 @@ class triple_gan(object):
 
 
         with fluid.program_guard(g_program):
+            declare_data(self)
             G_train = self.G(self.z, self.y, is_test=False)
             self.infer_program = g_program.clone(for_test=True)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False)
 
-            ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
+            # ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
+            ones_fake = ones(D_fake.shape)
             ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
             self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
 
@@ -357,7 +372,7 @@ class triple_gan(object):
             # self.save(self.checkpoint_dir, counter)
 
             # show temporal results
-            # self.visualize_results(epoch)
+            self.visualize_results(epoch)
 
             # save model for final step
         # self.save(self.checkpoint_dir, counter)
@@ -423,18 +438,26 @@ class triple_gan(object):
 if __name__ == "__main__":
 
 
-    epoch = 0
-    batch_size = 0
-    unlabel_batch_size = 0
-    z_dim = 0
+    epoch = 1000
+    batch_size = 20
+    unlabel_batch_size = 250
+    z_dim = 100
     dataset_name = 0
-    n = 0
-    gan_lr = 0
-    cla_lr = 0
+    n = 4000
+    gan_lr = 3e-4
+    cla_lr = 3e-3
     # checkpoint_dir = 0
-    result_dir = 0
-    log_dir = 0
+    dataset_name = 'cifar10'
+    result_dir = './result/'
+    check_folder(result_dir)
+    log_dir = './log/'
+    check_folder(log_dir)
     GAN = triple_gan(epoch, batch_size, unlabel_batch_size, z_dim, dataset_name, n, gan_lr, cla_lr, result_dir, log_dir)
+    GAN.train()
+
+
+
+
 
 
 
