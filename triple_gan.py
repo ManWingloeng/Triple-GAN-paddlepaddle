@@ -59,25 +59,28 @@ class triple_gan(object):
 
     def D(self, x, y_, name='Discriminator', is_test=False):
         with fluid.unique_name.guard(name+'_'):
+            print("xshape: ",x.shape)
             x = dropout(x, dropout_prob=0.2, is_test=False)
+            # x = reshape(x, [-1, 32, 32, 3])
             y = reshape(y_, [-1, 1, 1, self.y_dim]) #ten classes
             x = conv_cond_concat(x, y)
             #weight norm in paddlepaddle has finished
-            x = conv2d(x, num_filters=32, filter_size=[3,3], param_attr=wn('conv1'), name='conv1', act='lrelu')
+
+            x = conv2d(x, num_filters=32, filter_size=3, param_attr=wn(name+'_conv1'), act='lrelu')
             x = conv_cond_concat(x, y)
-            x = conv2d(x, num_filters=32, filter_size=[3,3], stride=2, param_attr=wn('conv2'), name='conv2', act='lrelu')
+            x = conv2d(x, num_filters=32, filter_size=3, stride=2, param_attr=wn(name+'_conv2'), act='lrelu')
             x = dropout(x, dropout_prob=0.2)
             x = conv_cond_concat(x, y)
 
-            x = conv2d(x, num_filters=64, filter_size=[3,3], param_attr=wn('conv3'), name='conv3', act='lrelu')
+            x = conv2d(x, num_filters=64, filter_size=3, param_attr=wn(name+'_conv3'), act='lrelu')
             x = conv_cond_concat(x, y)
-            x = conv2d(x, num_filters=64, filter_size=[3,3], stride=2, param_attr=wn('conv4'), name='conv4', act='lrelu')
+            x = conv2d(x, num_filters=64, filter_size=3, stride=2, param_attr=wn(name+'_conv4'), act='lrelu')
             x = dropout(x, dropout_prob=0.2)
             x = conv_cond_concat(x, y)
 
-            x = conv2d(x, num_filters=128, filter_size=[3,3], param_attr=wn('conv5'), name='conv5', act='lrelu')
+            x = conv2d(x, num_filters=128, filter_size=3, param_attr=wn(name+'_conv5'), act='lrelu')
             x = conv_cond_concat(x, y)
-            x = conv2d(x, num_filters=128, filter_size=[3,3], param_attr=wn('conv6'), name='conv6', act='lrelu')
+            x = conv2d(x, num_filters=128, filter_size=3, param_attr=wn(name+'_conv6'), act='lrelu')
             x = conv_cond_concat(x, y)
             
             x = Global_Average_Pooling(x)
@@ -86,53 +89,54 @@ class triple_gan(object):
             #IcGAN 每一层都要concat一下
 
             # MLP??
-            x_logit = fc(x, 1, name='fc')
-            out = sigmoid(x_logit, name='sigmoid')
+            x_logit = fc(x, 1)
+            out = sigmoid(x_logit)
 
             return out, x_logit, x
 
 
     def G(self, z, y, name='Generator', is_test=False):
         with fluid.unique_name.guard(name+'_'):
-            zy=concat(z,y)
-            zy = fc(zy, 8192, name='fc', act='relu')
+            zy = concat(z, y)
+            print("zy_concat: ",zy)
+            zy = fc(zy, 8192, act='relu')
             zy = bn(zy, name='bn', act='relu')
             zy = reshape(zy, [-1, 4, 4, 512])
             y = reshape(y, [-1, 1, 1, self.y_dim])
             zy = conv_cond_concat(zy, y)
-            zy = deconv(zy, num_filters=256, filter_size=[5, 5], stride=2, name='deconv1')
+            print("zy_before_decov: ",zy)
+            zy = deconv(zy, num_filters=256, filter_size=5, stride=2)
             zy = bn(zy, act='relu')
 
             zy = conv_cond_concat(zy, y)
-            zy = deconv(zy, num_filters=128, filter_size=[5, 5], stride= 2, name='deconv2')
+            zy = deconv(zy, num_filters=128, filter_size=5, stride= 2)
             zy = bn(zy, act='relu')
 
             zy = conv_cond_concat(zy, y)
-            zy = deconv(zy, num_filters=3, filter_size=[5, 5], stride=2, 
-                            param_attr=wn(name='deconv3'), name='deconv3', act='tanh')
-            
+            zy = deconv(zy, num_filters=3, filter_size=5, stride=2, act='tanh')
+            # zy = reshape(zy, shape=[-1, self.input_height, self.input_width, self.c_dim])
             return zy
 
     def C(self, x, name='Classifier', is_test=False):
         x = gaussian_noise_layer(x, std=0.15)
-        x = conv2d(x, num_filters=128, filter_size=[3,3], act='lrelu', param_attr=wn('conv1'), name='conv1')
-        x = conv2d(x, num_filters=128, filter_size=[3,3], act='lrelu', param_attr=wn('conv2'), name='conv2')
-        x = conv2d(x, num_filters=128, filter_size=[3,3], act='lrelu', param_attr=wn('conv3'), name='conv3')
+        x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(name+'_conv1'))
+        x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(name+'_conv2'))
+        x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(name+'_conv3'))
         x = max_pooling(x , pool_size=[2,2])
         x = dropout(x, dropout_prob=0.5)
 
-        x = conv2d(x, num_filters=256, filter_size=[3,3], act='lrelu', param_attr=wn('conv4'), name='conv4')
-        x = conv2d(x, num_filters=256, filter_size=[3,3], act='lrelu', param_attr=wn('conv5'), name='conv5')
-        x = conv2d(x, num_filters=256, filter_size=[3,3], act='lrelu', param_attr=wn('conv5'), name='conv5')
+        x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(name+'_conv4'))
+        x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(name+'_conv5'))
+        x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(name+'_conv5'))
         x = max_pooling(x , pool_size=[2,2])
         x = dropout(x, dropout_prob=0.5)
 
-        x = conv2d(x, num_filters=512, filter_size=[3,3], act='lrelu', param_attr=wn('conv5'), name='conv5')
-        x = nin(x, 256, param_attr=wn('nin1'), act='lrelu')
-        x = nin(x, 128, param_attr=wn('nin1'), act='lrelu')
+        x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(name+'_conv5'))
+        x = nin(x, 256, param_attr=wn(name+'_nin1'), act='lrelu')
+        x = nin(x, 128, param_attr=wn(name+'_nin2'), act='lrelu')
         x = Global_Average_Pooling(x)
         x = flatten(x)
-        x = fc(x, 10, param_attr=wn('fc1'), name=name+'_fc1')
+        x = fc(x, 10, param_attr=wn(name+'_fc1'))
         out = softmax(x)
 
         return x, out
@@ -158,27 +162,41 @@ class triple_gan(object):
 
         def declare_data(self):
             # images
-            self.inputs = fluid.layers.data(shape=[bs] + image_dims, name='real_images')
-            self.unlabelled_inputs = fluid.layers.data(shape=[unlabel_bs] + image_dims, name='unlabelled_images')
-            self.test_inputs = fluid.layers.data(shape=[test_bs] + image_dims, name='test_images')
-
+            # self.inputs = fluid.layers.data(shape=[bs] + image_dims, name='real_images')
+            self.inputs = fluid.layers.data(shape=image_dims, name='real_images')
+            print("self.inputs: ", self.inputs)
+            # self.unlabelled_inputs = fluid.layers.data(shape=[unlabel_bs] + image_dims, name='unlabelled_images')
+            self.unlabelled_inputs = fluid.layers.data(shape=image_dims, name='unlabelled_images')
+            # self.test_inputs = fluid.layers.data(shape=[test_bs] + image_dims, name='test_images')
+            self.test_inputs = fluid.layers.data(shape=image_dims, name='test_images')#nouse
             # labels
-            self.y = fluid.layers.data(shape=[bs, self.y_dim], name='y')
-            self.unlabelled_inputs_y = fluid.layers.data(shape=[unlabel_bs, self.y_dim], name='unlabelled_images_y')
-            self.test_label = fluid.layers.data(shape=[test_bs, self.y_dim], name='test_label')
-            self.visual_y = fluid.layers.data(shape=[self.visual_num, self.y_dim], name='visual_y')
+            # self.y = fluid.layers.data(shape=[bs, self.y_dim], name='y')
+            self.y = fluid.layers.data(shape=[self.y_dim], name='y')
+            # self.unlabelled_inputs_y = fluid.layers.data(shape=[unlabel_bs, self.y_dim], name='unlabelled_images_y')
+            self.unlabelled_inputs_y = fluid.layers.data(shape=[self.y_dim], name='unlabelled_images_y')#nouse
+            # self.test_label = fluid.layers.data(shape=[test_bs, self.y_dim], name='test_label')
+            self.test_label = fluid.layers.data(shape=[self.y_dim], name='test_label')#nouse
+            # self.visual_y = fluid.layers.data(shape=[self.visual_num, self.y_dim], name='visual_y')
+            self.visual_y = fluid.layers.data(shape=[self.y_dim], name='visual_y')
 
             # noises
-            self.z = fluid.layers.data(shape=[bs, self.z_dim], name='z')
-            self.visual_z = fluid.layers.data(shape=[self.visual_num, self.z_dim], name='visual_z')
+            # self.z = fluid.layers.data(shape=[bs, self.z_dim], name='z')
+            self.z = fluid.layers.data(shape=[self.z_dim], name='z')
+            # self.visual_z = fluid.layers.data(shape=[self.visual_num, self.z_dim], name='visual_z')
+            self.visual_z = fluid.layers.data(shape=[self.z_dim], name='visual_z')
 
-
+        declare_data(self)
         d_program = fluid.Program()
         g_program = fluid.Program()
         c_program = fluid.Program()
 
         with fluid.program_guard(d_program):
-            declare_data(self)
+            # declare_data(self)
+            self.inputs = fluid.layers.data(shape=image_dims, name='real_images')
+            self.y = fluid.layers.data(shape=[self.y_dim], name='y')
+            self.z = fluid.layers.data(shape=[self.z_dim], name='z')
+            self.unlabelled_inputs = fluid.layers.data(shape=image_dims, name='unlabelled_images')
+
             D_real, D_real_logits, _ = self.D(self.inputs, self.y, is_test=False)
             G_train = self.G(self.z, self.y, is_test=False)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False)
@@ -202,7 +220,13 @@ class triple_gan(object):
             self.d_loss = d_loss_real + d_loss_fake + d_loss_cla
 
         with fluid.program_guard(c_program):
-            declare_data(self)
+            # declare_data(self)
+            self.inputs = fluid.layers.data(shape=image_dims, name='real_images')
+            self.y = fluid.layers.data(shape=[self.y_dim], name='y')
+            self.z = fluid.layers.data(shape=[self.z_dim], name='z')
+            self.unlabelled_inputs = fluid.layers.data(shape=image_dims, name='unlabelled_images')
+
+
             G_train = self.G(self.z, self.y, is_test=False)
             # D_fake, D_fake_logits, _ = self.D(G_train, self.y)
 
@@ -232,7 +256,11 @@ class triple_gan(object):
 
 
         with fluid.program_guard(g_program):
-            declare_data(self)
+            # declare_data(self)
+            self.inputs = fluid.layers.data(shape=image_dims, name='real_images')
+            self.y = fluid.layers.data(shape=[self.y_dim], name='y')
+            self.z = fluid.layers.data(shape=[self.z_dim], name='z')
+            # self.unlabelled_inputs = fluid.layers.data(shape=image_dims, name='unlabelled_images')
             G_train = self.G(self.z, self.y, is_test=False)
             self.infer_program = g_program.clone(for_test=True)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False)
@@ -263,7 +291,8 @@ class triple_gan(object):
         # graph inputs for visualize training results
         self.sample_z = np.random.uniform(-1, 1, size=(self.visual_num, self.z_dim))
         self.test_codes = self.data_y[0:self.visual_num]
-
+        train_reader = paddle.batch(
+            paddle.dataset.cifar.train10(), batch_size=self.batch_size)
 
         start_time = time.time()
         for epoch in range(start_epoch, self.epoch):
@@ -287,6 +316,11 @@ class triple_gan(object):
             epoch_c_loss = []
             epoch_g_loss = []
 
+
+
+
+
+
         # get batch data
             for idx in range(0, self.num_batches):
                 batch_images = self.data_X[idx * self.batch_size : (idx + 1) * self.batch_size]
@@ -300,7 +334,7 @@ class triple_gan(object):
                 feed_dict = {
                     self.inputs: batch_images, self.y: batch_codes,
                     self.unlabelled_inputs: batch_unlabelled_images,
-                    self.unlabelled_inputs_y: batch_unlabelled_images_y,
+                    # self.unlabelled_inputs_y: batch_unlabelled_images_y,
                     self.z: batch_z, self.alpha_p: alpha_p,
                     self.gan_lr: gan_lr, self.cla_lr: cla_lr
                     # self.unsup_weight : unsup_weight
@@ -380,7 +414,7 @@ class triple_gan(object):
         # tot_num_samples = min(self.sample_num, self.batch_size)
         image_frame_dim = int(np.floor(np.sqrt(self.visual_num)))
         z_sample = np.random.uniform(-1, 1, size=(self.visual_num, self.z_dim))
-
+        self.visual_z = fluid.layers.data(shape=[self.z_dim], name='visual_z')
         """ random noise, random discrete code, fixed continuous code """
         y = np.random.choice(self.len_discrete_code, self.visual_num)
         # Generated 10 labels with batch_size

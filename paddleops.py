@@ -55,11 +55,11 @@ def fc(x, num_filters, param_attr=None, name=None, act=None):
     return fluid.layers.fc(input=x,
                            size=num_filters,
                            act=act,
-                           param_attr=name + 'w',
-                           bias_attr=name + 'b')
+                           param_attr=name + '_w',
+                           bias_attr=name + '_b')
 
-def sigmoid(x, name=None):
-    return fluid.layers.sigmoid(x, name=name)
+def sigmoid(x):
+    return fluid.layers.sigmoid(x)
 
 def ones(shape, dtype='float32'):
     return fluid.layers.ones(shape, dtype)
@@ -69,15 +69,21 @@ def zeros(shape, dtype='float32'):
 
 def conv_cond_concat(x, y):
     """Concatenate conditioning vector on feature map axis."""
-    print("shape0 ",x.shape[0])
-    # ones = fluid.layers.fill_constant_batch_size_like(
-    #     x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", 1.0)
-    return fluid.layers.concat([x, y * ones([x.shape[0], x.shape[1], x.shape[2], y.shape[3]])], axis=3)
+    # print("x: ",x)
+    # print("y: ",y)
+    # one = fluid.layers.fill_constant_batch_size_like(
+    #     x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", value=1.0)
+    return fluid.layers.concat([x, ones(shape=[x.shape[0], x.shape[1], x.shape[2], y.shape[3]]) * y], 3)
+    # print("one: ",one)
+    # y_one = one * y
+    # print("y_one: ",y_one)
+
+    
+        # return fluid.layers.concat([x, y_one], axis=3)
 
 
-
-def concat(x, axis=1):
-    return fluid.layers.concat(x, axis=axis)
+def concat(x, y, axis=1):
+    return fluid.layers.concat([x, y], axis=axis)
 
 def flatten(x, axis=1):
     return fluid.layers.flatten(x, axis=axis)
@@ -90,8 +96,12 @@ def conv2d( input,
             padding="SAME",
             act=None,
             leak=0.2,
-            name="conv2d",
+            name=None,
             ):
+    if name is None:
+        name = get_parent_function_name()
+    if param_attr is None:
+        param_attr = name+'_w'
     """Wrapper for conv2d op to support VALID and SAME padding mode."""
     need_crop = False
     if padding == "SAME":
@@ -157,79 +167,109 @@ def conv2d( input,
     return conv
 
 
-def deconv( input,
-            num_filters,
-            filter_size,
-            stride=1,
-            param_attr=None,
-            padding="SAME",
-            act=None,
-            leak=0.2,
-            name="deconv",
-            ):
-    """Wrapper for conv2d op to support VALID and SAME padding mode."""
-    need_crop = False
-    if padding == "SAME":
-        top_padding, bottom_padding = cal_padding(input.shape[2], stride,
-                                                  filter_size)
-        left_padding, right_padding = cal_padding(input.shape[2], stride,
-                                                  filter_size)
-        height_padding = bottom_padding
-        width_padding = right_padding
-        if top_padding != bottom_padding or left_padding != right_padding:
-            height_padding = top_padding + stride
-            width_padding = left_padding + stride
-            need_crop = True
-    else:
-        height_padding = 0
-        width_padding = 0
+def deconv(x,
+           num_filters,
+           name=None,
+           filter_size=5,
+           stride=2,
+           dilation=1,
+           padding=2,
+           output_size=None,
+           param_attr=None,
+           act=None):
+    if name is None:
+        name = get_parent_function_name()
+    if param_attr is None:
+        param_attr=name + 'w'
+    return fluid.layers.conv2d_transpose(
+        input=x,
+        param_attr=param_attr,
+        bias_attr=name + 'b',
+        num_filters=num_filters,
+        output_size=output_size,
+        filter_size=filter_size,
+        stride=stride,
+        dilation=dilation,
+        padding=padding,
+        act=act)
 
-    padding = [height_padding, width_padding]
-    bias_attr = fluid.ParamAttr(
-        name=name + "_b", initializer=fluid.initializer.Constant(0.0))
+# def deconv( input,
+#             num_filters,
+#             filter_size,
+#             stride=1,
+#             param_attr=None,
+#             padding="SAME",
+#             act=None,
+#             leak=0.2,
+#             name="deconv",
+#             ):
+#     if name is None:
+#         name = get_parent_function_name()
+#     # if param_attr is None:
+#     #     param_attr = name+'_w'
+#     """Wrapper for conv2d op to support VALID and SAME padding mode."""
+#     need_crop = False
+#     if padding == "SAME":
+#         top_padding, bottom_padding = cal_padding(input.shape[2], stride,
+#                                                   filter_size)
+#         left_padding, right_padding = cal_padding(input.shape[2], stride,
+#                                                   filter_size)
+#         height_padding = bottom_padding
+#         width_padding = right_padding
+#         if top_padding != bottom_padding or left_padding != right_padding:
+#             height_padding = top_padding + stride
+#             width_padding = left_padding + stride
+#             need_crop = True
+#     else:
+#         height_padding = 0
+#         width_padding = 0
 
-    # if need_crop:
-    #     conv = fluid.layers.crop(
-    #         conv,
-    #         shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
-    #         offsets=(0, 0, 1, 1))
-    # if norm:
-    #     conv = instance_norm(input=conv, name=name + "_norm")
-    if act=='lrelu':
-        conv = fluid.layers.conv2d_transpose(
-            input,
-            num_filters,
-            filter_size,
-            name=name,
-            stride=stride,
-            padding=padding,
-            use_cudnn=False,
-            param_attr=param_attr,
-            bias_attr=bias_attr)
-        if need_crop:
-            conv = fluid.layers.crop(
-                conv,
-                shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
-                offsets=(0, 0, 1, 1))
-        conv = fluid.layers.leaky_relu(conv, alpha=leak)
-    else:
-        conv = fluid.layers.conv2d_transpose(
-            input,
-            num_filters,
-            filter_size,
-            name=name,
-            stride=stride,
-            padding=padding,
-            use_cudnn=False,
-            act=act,
-            param_attr=param_attr,
-            bias_attr=bias_attr)
-        if need_crop:
-            conv = fluid.layers.crop(
-                conv,
-                shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
-                offsets=(0, 0, 1, 1))
-    return conv
+#     padding = [height_padding, width_padding]
+#     # bias_attr = fluid.ParamAttr(
+#     #     name=name + "_b", initializer=fluid.initializer.Constant(0.0))
+
+#     # if need_crop:
+#     #     conv = fluid.layers.crop(
+#     #         conv,
+#     #         shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
+#     #         offsets=(0, 0, 1, 1))
+#     # if norm:
+#     #     conv = instance_norm(input=conv, name=name + "_norm")
+#     if act=='lrelu':
+#         conv = fluid.layers.conv2d_transpose(
+#             input,
+#             num_filters,
+#             filter_size,
+#             name=name,
+#             stride=stride,
+#             padding=padding,
+#             use_cudnn=False,)
+#             # param_attr=param_attr,)
+#             # bias_attr=bias_attr)
+#         if need_crop:
+#             conv = fluid.layers.crop(
+#                 conv,
+#                 shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
+#                 offsets=(0, 0, 1, 1))
+#         conv = fluid.layers.leaky_relu(conv, alpha=leak)
+#     else:
+#         conv = fluid.layers.conv2d_transpose(
+#             input,
+#             num_filters,
+#             filter_size,
+#             name=name,
+#             stride=stride,
+#             padding=padding,
+#             use_cudnn=False,
+#             act=act,)
+#             # param_attr=param_attr,)
+#             # bias_attr=bias_attr)
+#         if need_crop:
+#             conv = fluid.layers.crop(
+#                 conv,
+#                 shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
+#                 offsets=(0, 0, 1, 1))
+#     return conv
 
 def lrelu(x, leak=0.2, name="lrelu"):
     return fluid.layers.leaky_relu(x, alpha=leak)
