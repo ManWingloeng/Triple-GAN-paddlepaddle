@@ -69,6 +69,7 @@ def zeros(shape, dtype='float32'):
 
 def conv_cond_concat(x, y):
     """Concatenate conditioning vector on feature map axis."""
+    print("shape0 ",x.shape[0])
     # ones = fluid.layers.fill_constant_batch_size_like(
     #     x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", 1.0)
     return fluid.layers.concat([x, y * ones([x.shape[0], x.shape[1], x.shape[2], y.shape[3]])], axis=3)
