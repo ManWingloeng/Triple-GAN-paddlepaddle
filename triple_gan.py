@@ -69,6 +69,7 @@ class triple_gan(object):
             x = conv2d(x, num_filters=32, filter_size=3, param_attr=wn(), act='lrelu', reuse=reuse)
             x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=32, filter_size=3, stride=2, param_attr=wn(), act='lrelu', reuse=reuse)
+            print("D,con2d_2 shape:",x.shape)
             x = dropout(x, dropout_prob=0.2)
             x = conv_cond_concat(x, y)
 
@@ -122,16 +123,19 @@ class triple_gan(object):
 
     def C(self, x, name='Classifier', is_test=False, reuse=False):
         x = gaussian_noise_layer(x, std=0.15)
+        print("C input shape: ",x.shape)
         x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
         x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
         x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = max_pooling(x , pool_size=2)
+        print("conv2d C shape: ",x.shape)
+        x = max_pooling(x , pool_size=2, pool_stride=2)
+        print("maxpool C shape:",x.shape)
         x = dropout(x, dropout_prob=0.5)
 
         x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
         x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
         x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = max_pooling(x , pool_size=2)
+        x = max_pooling(x , pool_size=2, pool_stride=2)
         x = dropout(x, dropout_prob=0.5)
 
         x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)

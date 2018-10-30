@@ -52,7 +52,9 @@ def linear(x, unit, wn=False, layer_name='linear'):
 def nin(x, unit, wn=False, layer_name='nin'):
     # https://github.com/openai/weightnorm/blob/master/tensorflow/nn.py
     with tf.name_scope(layer_name):
+
         s = list(map(int, x.get_shape()))
+        print([np.prod(s[:-1]), s[-1]])
         x = tf.reshape(x, [np.prod(s[:-1]), s[-1]])
         x = linear(x, unit, wn, layer_name)
         x = tf.reshape(x, s[:-1] + [unit])

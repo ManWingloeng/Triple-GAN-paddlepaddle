@@ -107,10 +107,10 @@ def conv2d( input,
     """Wrapper for conv2d op to support VALID and SAME padding mode."""
     need_crop = False
     if padding == 'SAME':
-        top_padding, bottom_padding = cal_padding(input.shape[2], stride,
+        top_padding, bottom_padding = cal_padding(input.shape[3], stride,
                                                   filter_size)
         print("top_padding, bottom_padding:",(top_padding, bottom_padding))
-        left_padding, right_padding = cal_padding(input.shape[2], stride,
+        left_padding, right_padding = cal_padding(input.shape[3], stride,
                                                   filter_size)
         height_padding = bottom_padding
         width_padding = right_padding
@@ -118,9 +118,11 @@ def conv2d( input,
             height_padding = top_padding + stride
             width_padding = left_padding + stride
             need_crop = True
-    else:
+    elif padding == 'VALID':
         height_padding = 0
         width_padding = 0
+    else :
+        padding=padding
 
     padding = [height_padding, width_padding]
     bias_attr = fluid.ParamAttr(
@@ -340,7 +342,7 @@ def nin(x, num_units, name='nin', param_attr=None, act=None, reuse=False):
     """ a network in network layer (1x1 CONV) """
     s = list(map(int, x.shape))
     print([np.prod(s[:-1]),s[-1]])
-    x = reshape(x, [np.prod(s[:-1]),s[-1]])
+    x = reshape(x, [np.prod(s[:-1]),s[-1]])#the position change and batch how to use???
     if act=='lrelu':
         x = fc(x, num_units, name=name, param_attr=param_attr, reuse=reuse)
         x = lrelu(x)
