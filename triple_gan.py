@@ -122,32 +122,33 @@ class triple_gan(object):
             return zy
 
     def C(self, x, name='Classifier', is_test=False, reuse=False):
-        x = gaussian_noise_layer(x, std=0.15)
-        print("C input shape: ",x.shape)
-        x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        print("conv2d C shape: ",x.shape)
-        x = max_pooling(x , pool_size=2, pool_stride=2)
-        print("maxpool C shape:",x.shape)
-        x = dropout(x, dropout_prob=0.5)
+        with fluid.unique_name.guard(name+'_'):
+            x = gaussian_noise_layer(x, std=0.15)
+            print("C input shape: ",x.shape)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), name='conv1', reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), name='conv2', reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), name='conv3', reuse=reuse)
+            print("conv2d C shape: ",x.shape)
+            x = max_pooling(x , pool_size=2, pool_stride=2)
+            print("maxpool C shape:",x.shape)
+            x = dropout (x, dropout_prob=0.5)
 
-        x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        x = max_pooling(x , pool_size=2, pool_stride=2)
-        x = dropout(x, dropout_prob=0.5)
+            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = max_pooling(x , pool_size=2, pool_stride=2)
+            x = dropout(x, dropout_prob=0.5)
 
-        x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-        print("C_conv2d7 ",x)
-        x = nin(x, 256, param_attr=wn(), act='lrelu', reuse=reuse)
-        x = nin(x, 128, param_attr=wn(), act='lrelu', reuse=reuse)
-        x = Global_Average_Pooling(x)
-        x = flatten(x)
-        x = fc(x, 10, param_attr=wn(), reuse=reuse)
-        out = softmax(x)
+            x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(), name= reuse=reuse)
+            print("C_conv2d7 ",x)
+            x = nin(x, 256, name='nin1', param_attr=wn(), act='lrelu', reuse=reuse)
+            x = nin(x, 128, name='nin2', param_attr=wn(), act='lrelu', reuse=reuse)
+            x = Global_Average_Pooling(x)
+            x = flatten(x)
+            x = fc(x, 10, param_attr=wn(), reuse=reuse)
+            out = softmax(x)
 
-        return x, out
+            return x, out
 
     def loss(self, x, label):
         return fluid.layers.mean(

@@ -338,17 +338,20 @@ def gaussian_noise_layer(x, std=0.15):
     noise = fluid.layers.gaussian_random(shape=x.shape, mean=0.0, std=std)
     return x + noise
 
-def nin(x, num_units, name='nin', param_attr=None, act=None, reuse=False):
+def nin(x, num_units, name=None, param_attr=None, act=None, reuse=False):
     """ a network in network layer (1x1 CONV) """
+    if name is None:
+        name = get_parent_function_name()
     s = list(map(int, x.shape))
-    print([np.prod(s[:-1]),s[-1]])
-    x = reshape(x, [np.prod(s[:-1]),s[-1]])#the position change and batch how to use???
+    #print([np.prod(s[:-1]),s[-1]])
+    x = reshape(x, [-1, np.prod(s[2:]), s[1]])
+    #x = reshape(x, [np.prod(s[:-1]),s[-1]])#the position change and batch how to use???
     if act=='lrelu':
         x = fc(x, num_units, name=name, param_attr=param_attr, reuse=reuse)
         x = lrelu(x)
     else:
         x = fc(x, num_units, name=name, param_attr=param_attr, act=act, reuse=reuse)
-    return reshape(x, s[:-1]+[num_units])
+    return reshape(x, [-1, num_units]+s[2:])
 
 def softmax(x):
     return fluid.layers.softmax(x)
