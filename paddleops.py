@@ -34,28 +34,30 @@ def wn() :
     return fluid.WeightNormParamAttr(initializer=fluid.initializer.MSRAInitializer())
 
 
-def conv(x, num_filters, name=None, act=None):
-    if name is None:
-        name = get_parent_function_name()
-    return fluid.nets.simple_img_conv_pool(
-        input=x,
-        filter_size=5,
-        num_filters=num_filters,
-        pool_size=2,
-        pool_stride=2,
-        param_attr=name + 'w',
-        bias_attr=name + 'b',
-        act=act)
+# def conv(x, num_filters, name=None, act=None):
+#     if name is None:
+#         name = get_parent_function_name()
+#     return fluid.nets.simple_img_conv_pool(
+#         input=x,
+#         filter_size=5,
+#         num_filters=num_filters,
+#         pool_size=2,
+#         pool_stride=2,
+#         param_attr=name + 'w',
+#         bias_attr=name + 'b',
+#         act=act)
 
 
-def fc(x, num_filters, param_attr=None, name=None, act=None):
+def fc(x, num_filters, param_attr=None, name=None, act=None, reuse=False):
     if name is None:
         name = get_parent_function_name()
+    if reuse or (param_attr is None):
+        param_attr=name + '_w'
     return fluid.layers.fc(input=x,
-                           size=num_filters,
-                           act=act,
-                           param_attr=name + '_w',
-                           bias_attr=name + '_b')
+                size=num_filters,
+                act=act,
+                param_attr=param_attr,
+                bias_attr=name + '_b')
 
 def sigmoid(x):
     return fluid.layers.sigmoid(x)
@@ -96,11 +98,12 @@ def conv2d( input,
             act=None,
             leak=0.2,
             name=None,
+            reuse=False
             ):
     if name is None:
         name = get_parent_function_name()
-    if param_attr is None:
-        param_attr = name+'_w'
+    if reuse or (param_attr is None):
+        param_attr=name + '_w'
     """Wrapper for conv2d op to support VALID and SAME padding mode."""
     need_crop = False
     if padding == 'SAME':
@@ -177,11 +180,12 @@ def deconv( x,
             padding = "SAME",    
             output_size=None,
             param_attr=None,
+            reuse=False,
             act=None):
     if name is None:
         name = get_parent_function_name()
-    if param_attr is None:
-        param_attr=name + 'w'
+    if reuse or (param_attr is None):
+        param_attr=name + '_w'
     need_crop = False
     if padding == "SAME":
         top_padding, bottom_padding = cal_padding(x.shape[2], stride,
@@ -322,25 +326,26 @@ def reshape(x, shape):
     return fluid.layers.reshape(x, shape)
 
 
-def max_pooling(x, pool_size=-1, stride=1, padding=0):
-    return fluid.layers.pool2d(x, pool_size=pool_size, stride=stride, pool_padding=padding)
+def max_pooling(x, pool_size=-1, pool_stride=1, padding=0):
+    return fluid.layers.pool2d(x, pool_size=pool_size, pool_stride=pool_stride, pool_padding=padding)
 
 def Global_Average_Pooling(x):
     return fluid.layers.pool2d(x, pool_type='avg', global_pooling=True)
 
 def gaussian_noise_layer(x, std=0.15):
-    noise = fluid.layers.gaussian_random(shape=fluid.layers.shape(x), mean=0.0, std=std)
+    noise = fluid.layers.gaussian_random(shape=x.shape, mean=0.0, std=std)
     return x + noise
 
-def nin(x, num_units, name='nin', param_attr=None, act=None):
+def nin(x, num_units, name='nin', param_attr=None, act=None, reuse=False):
     """ a network in network layer (1x1 CONV) """
-    s = list(map(int, x.get_shape()))
+    s = list(map(int, x.shape))
+    print([np.prod(s[:-1]),s[-1]])
     x = reshape(x, [np.prod(s[:-1]),s[-1]])
     if act=='lrelu':
-        x = fc(x, num_units, name=name, param_attr=param_attr)
+        x = fc(x, num_units, name=name, param_attr=param_attr, reuse=reuse)
         x = lrelu(x)
     else:
-        x = fc(x, num_units, name=name, param_attr=param_attr, act=act)
+        x = fc(x, num_units, name=name, param_attr=param_attr, act=act, reuse=reuse)
     return reshape(x, s[:-1]+[num_units])
 
 def softmax(x):
