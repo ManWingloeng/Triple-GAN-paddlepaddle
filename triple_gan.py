@@ -66,9 +66,11 @@ class triple_gan(object):
             x = conv_cond_concat(x, y)
             #weight norm in paddlepaddle has finished
             print("convbefore!!!!!!!:",x)
-            x = conv2d(x, num_filters=32, filter_size=3, param_attr=wn(), act='lrelu', reuse=reuse)
+            x = conv2d(x, num_filters=32, filter_size=3, 
+                            param_attr=wn(name=name+'_conv1_weight_norm_param'), act='lrelu', reuse=reuse)
             x = conv_cond_concat(x, y)
-            x = conv2d(x, num_filters=32, filter_size=3, stride=2, param_attr=wn(), act='lrelu', reuse=reuse)
+            x = conv2d(x, num_filters=32, filter_size=3, stride=2, 
+                        param_attr=wn(name=name+'_conv2_weight_norm_param'), act='lrelu', reuse=reuse)
             print("D,con2d_2 shape:",x.shape)
             x = dropout(x, dropout_prob=0.2)
             x = conv_cond_concat(x, y)
@@ -236,7 +238,27 @@ class triple_gan(object):
             d_loss_real = fluid.layers.reduce_mean(ce_real)
             d_loss_fake = (1 - alpha) * fluid.layers.reduce_mean(ce_fake)
             d_loss_cla = alpha * fluid.layers.reduce_mean(ce_cla)
-            self.d_loss = d_loss_real + d_loss_fake + d_loss_cla
+            d_R_F_loss = fluid.layers.elementwise_add(d_loss_real, d_loss_fake)
+            d_loss = fluid.layers.elementwise_add(d_R_F_loss, d_loss_cla)
+
+            d_parameters = self.get_params(d_program, prefix='D')
+            # d_all_params = d_program.global_block().all_parameters()
+            # d_params= [t.name for t in d_all_params]
+            # d_opt = fluid.optimizer.RMSPropOptimizer(learning_rate=self.gan_lr)
+            lr = 0.0002
+            d_opt = fluid.optimizer.Adam(
+                learning_rate=fluid.layers.piecewise_decay(
+                    boundaries=[
+                        100 * self.decay_epoch, 120 * self.decay_epoch,
+                        140 * self.decay_epoch, 160 * self.decay_epoch,
+                        180 * self.decay_epoch
+                    ],
+                    values=[
+                        lr, lr * 0.8, lr * 0.6, lr * 0.4, lr * 0.2, lr * 0.1
+                    ]),
+                beta1=0.5)
+            # d_loss = D_fake
+            d_opt.minimize(d_loss, parameter_list=d_parameters)
 
         with fluid.program_guard(c_program):
             # declare_data(self)
@@ -298,14 +320,27 @@ class triple_gan(object):
             self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
 
         d_parameters = self.get_params(d_program, prefix='D')
-        fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.d_loss, parameter_list=d_parameters)
+        d_all_params = d_program.global_block().all_parameters()
+        d_params= [t.name for t in d_all_params]
+        d_opt = fluid.optimizer.Adam(learning_rate=self.gan_lr, beta1=self.GAN_beta1)
+        # d_opt.minimize(self.d_loss, parameter_list=d_parameters)
         print(d_parameters)
+        print(d_params)
+
+
         c_parameters = self.get_params(c_program, prefix='C')
-        fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.c_loss, parameter_list=c_parameters)
+        c_opt = fluid.optimizer.Adam(learning_rate=self.gan_lr, beta1=self.GAN_beta1)
+        # c_opt.minimize(loss=self.c_loss, parameter_list=c_parameters)
+        
         print(c_parameters)
+        
+        
         g_parameters = self.get_params(g_program, prefix='G')
-        fluid.optimizer.Adam(self.cla_lr, beta1=self.beta1, beta2=self.beta2, epsilon=self.epsilon).minimize(loss=self.g_loss, parameter_list=g_parameters)
+        g_opt = fluid.optimizer.Adam(learning_rate=self.cla_lr, beta1=self.beta1, beta2=self.beta2, epsilon=self.epsilon)
+        # g_opt.minimize(loss=self.g_loss, parameter_list=g_parameters)
         print(g_parameters)
+
+
         place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
         self.exe = fluid.Executor(place)
         self.exe.run(fluid.default_startup_program())

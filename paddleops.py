@@ -30,8 +30,10 @@ def bn(x, name=None, act='relu'):
         name=name,
         act=act)
 
-def wn() :
-    return fluid.WeightNormParamAttr(initializer=fluid.initializer.MSRAInitializer())
+def wn(name=None) :
+    if name is None:
+        name = get_parent_function_name()
+    return fluid.WeightNormParamAttr(dim=None, name=name, initializer=fluid.initializer.ConstantInitializer(1.0))
 
 
 # def conv(x, num_filters, name=None, act=None):
@@ -51,13 +53,15 @@ def wn() :
 def fc(x, num_filters, param_attr=None, name=None, act=None, reuse=False):
     if name is None:
         name = get_parent_function_name()
-    if reuse or (param_attr is None):
+    # if reuse or (param_attr is None):
+    #     param_attr=name + '_w'
+    if (param_attr is None):
         param_attr=name + '_w'
     return fluid.layers.fc(input=x,
                 size=num_filters,
                 act=act,
-                param_attr=param_attr,
-                bias_attr=name + '_b')
+                param_attr=param_attr,)
+                # bias_attr=name + '_b')
 
 def sigmoid(x):
     return fluid.layers.sigmoid(x)
@@ -102,7 +106,9 @@ def conv2d( input,
             ):
     if name is None:
         name = get_parent_function_name()
-    if reuse or (param_attr is None):
+    # if reuse or (param_attr is None):
+    #     param_attr=name + '_w'
+    if (param_attr is None):
         param_attr=name + '_w'
     """Wrapper for conv2d op to support VALID and SAME padding mode."""
     need_crop = False
@@ -125,8 +131,8 @@ def conv2d( input,
         padding=padding
 
     padding = [height_padding, width_padding]
-    bias_attr = fluid.ParamAttr(
-        name=name + "_b", initializer=fluid.initializer.Constant(0.0))
+    # bias_attr = fluid.ParamAttr(
+    #     name=name + "_b", initializer=fluid.initializer.Constant(0.0))
 
     # if need_crop:
     #     conv = fluid.layers.crop(
@@ -144,8 +150,8 @@ def conv2d( input,
             stride=stride,
             padding=padding,
             use_cudnn=False,
-            param_attr=param_attr,
-            bias_attr=bias_attr)
+            param_attr=param_attr,)
+            # bias_attr=bias_attr)
         if need_crop:
             conv = fluid.layers.crop(
                 conv,
@@ -162,8 +168,8 @@ def conv2d( input,
             padding=padding,
             use_cudnn=False,
             act=act,
-            param_attr=param_attr,
-            bias_attr=bias_attr)
+            param_attr=param_attr,)
+            # bias_attr=bias_attr)
         if need_crop:
             conv = fluid.layers.crop(
                 conv,
@@ -186,7 +192,9 @@ def deconv( x,
             act=None):
     if name is None:
         name = get_parent_function_name()
-    if reuse or (param_attr is None):
+    # if reuse or (param_attr is None):
+    #     param_attr=name + '_w'
+    if (param_attr is None):
         param_attr=name + '_w'
     need_crop = False
     if padding == "SAME":
@@ -208,7 +216,7 @@ def deconv( x,
     conv = fluid.layers.conv2d_transpose(
         input=x,
         param_attr=param_attr,
-        bias_attr=name + 'b',
+        # bias_attr=name + 'b',
         num_filters=num_filters,
         output_size=output_size,
         filter_size=filter_size,
