@@ -57,7 +57,7 @@ class triple_gan(object):
         else :
             raise NotImplementedError
 
-    def D(self, x, y_, name='Discriminator', is_test=False, reuse=False):
+    def D(self, x, y_, name='D', is_test=False, reuse=False):
         with fluid.unique_name.guard(name+'_'):
             print("xshape: ",x.shape)
             x = dropout(x, dropout_prob=0.2, is_test=False)
@@ -96,7 +96,7 @@ class triple_gan(object):
             return out, x_logit, x
 
 
-    def G(self, z, y, name='Generator', is_test=False, reuse=False):
+    def G(self, z, y, name='G', is_test=False, reuse=False):
         with fluid.unique_name.guard(name+'_'):
             zy = concat(z, y)
             print("zy_concat: ",zy)
@@ -121,13 +121,13 @@ class triple_gan(object):
             # zy = reshape(zy, shape=[-1, self.input_height, self.input_width, self.c_dim])
             return zy
 
-    def C(self, x, name='Classifier', is_test=False, reuse=False):
+    def C(self, x, name='C', is_test=False, reuse=False):
         with fluid.unique_name.guard(name+'_'):
             x = gaussian_noise_layer(x, std=0.15)
             print("C input shape: ",x.shape)
-            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), name='conv1', reuse=reuse)
-            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), name='conv2', reuse=reuse)
-            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), name='conv3', reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
             print("conv2d C shape: ",x.shape)
             x = max_pooling(x , pool_size=2, pool_stride=2)
             print("maxpool C shape:",x.shape)
@@ -139,7 +139,7 @@ class triple_gan(object):
             x = max_pooling(x , pool_size=2, pool_stride=2)
             x = dropout(x, dropout_prob=0.5)
 
-            x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(), name= reuse=reuse)
+            x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
             print("C_conv2d7 ",x)
             x = nin(x, 256, name='nin1', param_attr=wn(), act='lrelu', reuse=reuse)
             x = nin(x, 128, name='nin2', param_attr=wn(), act='lrelu', reuse=reuse)
@@ -160,6 +160,12 @@ class triple_gan(object):
         return "{}_{}_{}_{}".format(
             self.model_name, self.dataset_name,
             self.batch_size, self.z_dim)
+
+
+    def get_params(self, program, prefix):
+        all_params = program.global_block().all_parameters()
+        return [t.name for t in all_params if t.name.startswith(prefix)]
+
 
     def train(self):
         image_dims = [self.c_dim, self.input_height, self.input_width]
@@ -211,7 +217,9 @@ class triple_gan(object):
             G_train = self.G(self.z, self.y, is_test=False)
             print(G_train)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False, reuse=True)
-            D_cla, D_cla_logits = self.C(self.unlabelled_inputs, is_test=False)
+            Y_c, _ = self.C(self.unlabelled_inputs, is_test=False)
+            D_cla, D_cla_logits, _ = self.D(self.unlabelled_inputs, Y_c, is_test=False, reuse=True)
+
 
 
             # ones_real = fluid.layers.fill_constant_batch_size_like(D_real, shape=[-1, 1], dtype='float32', value=1)
@@ -245,21 +253,29 @@ class triple_gan(object):
             # ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
             # self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
             
-            C_real_logits = self.C(self.inputs, is_test=False)
-            R_L = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_real_logits))
+            C_real_logits, _ = self.C(self.inputs, is_test=False, reuse=True)
+            print("C_real_logits: ",C_real_logits)
+            print("self.y: ",self.y)
+            R_L = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(logits=C_real_logits, label=self.y, soft_label=True))
 
             # output of D for unlabelled imagesc
-            Y_c = self.C(self.unlabelled_inputs, is_test=False, reuse=True)
+            Y_c, _ = self.C(self.unlabelled_inputs, is_test=False, reuse=True)
             D_cla, D_cla_logits, _ = self.D(self.unlabelled_inputs, Y_c, is_test=False, reuse=True)
-            ones_D_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=1)
-
+            # ones_D_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=1)
+            ones_D_cla = ones(D_cla.shape)
 
             # output of C for fake images
-            C_fake_logits = self.C(G_train, is_test=False, reuse=True)
-            R_P = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_fake_logits))
+            C_fake_logits, _ = self.C(G_train, is_test=False, reuse=True)
+            print("C_fake_logits: ",C_fake_logits)
+            print("self.y: ",self.y)
+            R_P = fluid.layers.reduce_mean(fluid.layers.softmax_with_cross_entropy(label=self.y, logits=C_fake_logits, soft_label=True))
 
             max_c = fluid.layers.cast(fluid.layers.argmax(Y_c, axis=1), dtype='float32')
-            c_loss_dis = fluid.layers.reduce_mean(max_c * fluid.layers.softmax_with_cross_entropy(logits=D_cla_logits, label=ones_D_cla))
+            print("max_c: ", max_c)
+            ce_D_cla = fluid.layers.softmax_with_cross_entropy(logits=D_cla_logits, label=ones_D_cla, soft_label=True)
+            ce_D_cla = reshape(ce_D_cla,shape=[-1])
+            print("ce_D_cla: ", ce_D_cla)
+            c_loss_dis = fluid.layers.reduce_mean(max_c * ce_D_cla)
             # self.c_loss = alpha * c_loss_dis + R_L + self.alpha_p*R_P
 
             # R_UL = self.unsup_weight * tf.reduce_mean(tf.squared_difference(Y_c, self.unlabelled_inputs_y))
@@ -278,18 +294,18 @@ class triple_gan(object):
 
             # ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
             ones_fake = ones(D_fake.shape)
-            ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=ones_fake)
+            ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(x=D_fake_logits, label=ones_fake)
             self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
 
-
-        fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.d_loss)
-
-        c_parameters = [p.name for p in c_program.global_block().all_parameters()]
+        d_parameters = self.get_params(d_program, prefix='D')
+        fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.d_loss, parameter_list=d_parameters)
+        print(d_parameters)
+        c_parameters = self.get_params(c_program, prefix='C')
         fluid.optimizer.Adam(self.gan_lr, beta1=self.GAN_beta1).minimize(loss=self.c_loss, parameter_list=c_parameters)
-
-        g_parameters = [p.name for p in g_program.global_block().all_parameters()]
+        print(c_parameters)
+        g_parameters = self.get_params(g_program, prefix='G')
         fluid.optimizer.Adam(self.cla_lr, beta1=self.beta1, beta2=self.beta2, epsilon=self.epsilon).minimize(loss=self.g_loss, parameter_list=g_parameters)
-
+        print(g_parameters)
         place = fluid.CUDAPlace(0) if fluid.core.is_compiled_with_cuda() else fluid.CPUPlace()
         self.exe = fluid.Executor(place)
         self.exe.run(fluid.default_startup_program())
