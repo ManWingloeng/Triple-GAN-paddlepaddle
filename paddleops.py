@@ -33,7 +33,7 @@ def bn(x, name=None, act='relu'):
 def wn(name=None) :
     if name is None:
         name = get_parent_function_name()
-    return fluid.WeightNormParamAttr(dim=None, name=name, initializer=fluid.initializer.ConstantInitializer(1.0))
+    return fluid.WeightNormParamAttr(name=name)
 
 
 # def conv(x, num_filters, name=None, act=None):
@@ -56,7 +56,7 @@ def fc(x, num_filters, param_attr=None, name=None, act=None, reuse=False):
     # if reuse or (param_attr is None):
     #     param_attr=name + '_w'
     if (param_attr is None):
-        param_attr=name + '_w'
+        param_attr=fluid.ParamAttr(name=name + '_w', initializer=fluid.initializer.MSRAInitializer())
     return fluid.layers.fc(input=x,
                 size=num_filters,
                 act=act,
@@ -72,20 +72,29 @@ def ones(shape, dtype='float32'):
 def zeros(shape, dtype='float32'):
     return fluid.layers.zeros(shape, dtype)
 
-def conv_cond_concat(x, y):
-    """Concatenate conditioning vector on feature map axis."""
-    # print("x: ",x)
-    # print("y: ",y)
-    # one = fluid.layers.fill_constant_batch_size_like(
-    #     x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", value=1.0)
-    return fluid.layers.concat([x, ones(shape=[x.shape[0], y.shape[1], x.shape[2], x.shape[3]]) * y], 1)
+# def conv_cond_concat(x, y):
+#     """Concatenate conditioning vector on feature map axis."""
+#     # print("x: ",x)
+#     # print("y: ",y)
+#     # one = fluid.layers.fill_constant_batch_size_like(
+#     #     x, [-1, x.shape[1], x.shape[2], y.shape[3]], "float32", value=1.0)
+#     # ones_y = ones(shape=[x.shape[0], y.shape[1], x.shape[2], x.shape[3]])
+#     ones_y = fluid.layers.fill_constant_batch_size_like(
+#         x, [-1, y.shape[1], x.shape[2], x.shape[3]], "float32", value=1.0
+#     )
+#     ones_y.stop_gradient=True
+#     return fluid.layers.concat([x, ones_y*y], 1)
     # print("one: ",one)
     # y_one = one * y
     # print("y_one: ",y_one)
 
     
         # return fluid.layers.concat([x, y_one], axis=3)
-
+def conv_cond_concat(x, y):
+    """Concatenate conditioning vector on feature map axis."""
+    ones_y = fluid.layers.fill_constant_batch_size_like(
+        x, [-1, y.shape[1], x.shape[2], x.shape[3]], "float32", 1.0)
+    return fluid.layers.concat([x, ones_y * y], 1)
 
 def concat(x, y, axis=1):
     return fluid.layers.concat([x, y], axis=axis)
@@ -98,7 +107,7 @@ def conv2d( input,
             filter_size,
             stride=1,
             param_attr=None,
-            padding='SAME',
+            padding=0,
             act=None,
             leak=0.2,
             name=None,
@@ -109,28 +118,28 @@ def conv2d( input,
     # if reuse or (param_attr is None):
     #     param_attr=name + '_w'
     if (param_attr is None):
-        param_attr=name + '_w'
+        param_attr=fluid.ParamAttr(name=name + '_w', initializer=fluid.initializer.MSRAInitializer())
     """Wrapper for conv2d op to support VALID and SAME padding mode."""
     need_crop = False
-    if padding == 'SAME':
-        top_padding, bottom_padding = cal_padding(input.shape[3], stride,
-                                                  filter_size)
-        print("top_padding, bottom_padding:",(top_padding, bottom_padding))
-        left_padding, right_padding = cal_padding(input.shape[3], stride,
-                                                  filter_size)
-        height_padding = bottom_padding
-        width_padding = right_padding
-        if top_padding != bottom_padding or left_padding != right_padding:
-            height_padding = top_padding + stride
-            width_padding = left_padding + stride
-            need_crop = True
-    elif padding == 'VALID':
-        height_padding = 0
-        width_padding = 0
-    else :
-        padding=padding
+    # if padding == 'SAME':
+    #     top_padding, bottom_padding = cal_padding(input.shape[3], stride,
+    #                                               filter_size)
+    #     print("top_padding, bottom_padding:",(top_padding, bottom_padding))
+    #     left_padding, right_padding = cal_padding(input.shape[3], stride,
+    #                                               filter_size)
+    #     height_padding = bottom_padding
+    #     width_padding = right_padding
+    #     if top_padding != bottom_padding or left_padding != right_padding:
+    #         height_padding = top_padding + stride
+    #         width_padding = left_padding + stride
+    #         need_crop = True
+    # elif padding == 'VALID':
+    #     height_padding = 0
+    #     width_padding = 0
+    # else :
+    #     padding=padding
 
-    padding = [height_padding, width_padding]
+    # padding = [height_padding, width_padding]
     # bias_attr = fluid.ParamAttr(
     #     name=name + "_b", initializer=fluid.initializer.Constant(0.0))
 
@@ -152,11 +161,11 @@ def conv2d( input,
             use_cudnn=False,
             param_attr=param_attr,)
             # bias_attr=bias_attr)
-        if need_crop:
-            conv = fluid.layers.crop(
-                conv,
-                shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
-                offsets=(0, 0, 1, 1))
+        # if need_crop:
+        #     conv = fluid.layers.crop(
+        #         conv,
+        #         shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
+        #         offsets=(0, 0, 1, 1))
         conv = fluid.layers.leaky_relu(conv, alpha=leak)
     else:
         conv = fluid.layers.conv2d(
@@ -170,11 +179,11 @@ def conv2d( input,
             act=act,
             param_attr=param_attr,)
             # bias_attr=bias_attr)
-        if need_crop:
-            conv = fluid.layers.crop(
-                conv,
-                shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
-                offsets=(0, 0, 1, 1))
+        # if need_crop:
+        #     conv = fluid.layers.crop(
+        #         conv,
+        #         shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
+        #         offsets=(0, 0, 1, 1))
     return conv
 
 
@@ -185,7 +194,7 @@ def deconv( x,
             stride=2,
             #    dilation=1,
             #    padding=2,
-            padding = "SAME",    
+            padding = 0,    
             output_size=None,
             param_attr=None,
             reuse=False,
@@ -195,22 +204,22 @@ def deconv( x,
     # if reuse or (param_attr is None):
     #     param_attr=name + '_w'
     if (param_attr is None):
-        param_attr=name + '_w'
+        param_attr=fluid.ParamAttr(name=name + '_w', initializer=fluid.initializer.MSRAInitializer())
     need_crop = False
-    if padding == "SAME":
-        top_padding, bottom_padding = cal_padding(x.shape[2], stride,
-                                                  filter_size)
-        print("(x.shape[2], stride,num_filters):",(x.shape[2], stride, filter_size))
-        print("top_padding, bottom_padding:",(top_padding, bottom_padding))
-        left_padding, right_padding = cal_padding(x.shape[2], stride,
-                                                  filter_size)
-        height_padding = bottom_padding
-        width_padding = right_padding
-        if top_padding != bottom_padding or left_padding != right_padding:
-            height_padding = top_padding + stride
-            width_padding = left_padding + stride
-            need_crop = True
-        padding = [height_padding, width_padding]
+    # if padding == "SAME":
+    #     top_padding, bottom_padding = cal_padding(x.shape[2], stride,
+    #                                               filter_size)
+    #     print("(x.shape[2], stride,num_filters):",(x.shape[2], stride, filter_size))
+    #     print("top_padding, bottom_padding:",(top_padding, bottom_padding))
+    #     left_padding, right_padding = cal_padding(x.shape[2], stride,
+    #                                               filter_size)
+    #     height_padding = bottom_padding
+    #     width_padding = right_padding
+    #     if top_padding != bottom_padding or left_padding != right_padding:
+    #         height_padding = top_padding + stride
+    #         width_padding = left_padding + stride
+    #         need_crop = True
+    #     padding = [height_padding, width_padding]
     print("padding",padding)
 
     conv = fluid.layers.conv2d_transpose(
@@ -224,11 +233,11 @@ def deconv( x,
         # dilation=dilation,
         padding=padding,
         act=act)
-    if need_crop:
-        conv = fluid.layers.crop(
-            conv,
-            shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
-            offsets=(0, 0, 0, 0))
+    # if need_crop:
+    #     conv = fluid.layers.crop(
+    #         conv,
+    #         shape=(-1, conv.shape[1], conv.shape[2] - 1, conv.shape[3] - 1),
+    #         offsets=(0, 0, 0, 0))
 
     return conv
 

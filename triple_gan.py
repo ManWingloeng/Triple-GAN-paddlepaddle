@@ -60,35 +60,36 @@ class triple_gan(object):
     def D(self, x, y_, name='D', is_test=False, reuse=False):
         with fluid.unique_name.guard(name+'_'):
             print("xshape: ",x.shape)
-            x = dropout(x, dropout_prob=0.2, is_test=False)
+            x = dropout(x, dropout_prob=0.2, is_test=is_test)
             # x = reshape(x, [-1, 32, 32, 3])--->[-1,3,32,32]
             y = reshape(y_, [-1, self.y_dim, 1, 1]) #ten classes
-            x = conv_cond_concat(x, y)
+            # x = conv_cond_concat(x, y)
             #weight norm in paddlepaddle has finished
             print("convbefore!!!!!!!:",x)
             x = conv2d(x, num_filters=32, filter_size=3, 
-                            param_attr=wn(name=name+'_conv1_weight_norm_param'), act='lrelu', reuse=reuse)
-            x = conv_cond_concat(x, y)
+                            param_attr=None, act='lrelu', reuse=reuse)
+            # x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=32, filter_size=3, stride=2, 
-                        param_attr=wn(name=name+'_conv2_weight_norm_param'), act='lrelu', reuse=reuse)
+                            param_attr=None, act='lrelu', reuse=reuse)
             print("D,con2d_2 shape:",x.shape)
             x = dropout(x, dropout_prob=0.2)
-            x = conv_cond_concat(x, y)
+            # x = conv_cond_concat(x, y)
 
-            x = conv2d(x, num_filters=64, filter_size=3, param_attr=wn(), act='lrelu', reuse=reuse)
-            x = conv_cond_concat(x, y)
-            x = conv2d(x, num_filters=64, filter_size=3, stride=2, param_attr=wn(), act='lrelu', reuse=reuse)
+            x = conv2d(x, num_filters=64, filter_size=3, param_attr=None, act='lrelu', reuse=reuse)
+            # x = conv_cond_concat(x, y)
+            x = conv2d(x, num_filters=64, filter_size=3, stride=2, param_attr=None, act='lrelu', reuse=reuse)
             x = dropout(x, dropout_prob=0.2)
-            x = conv_cond_concat(x, y)
+            # x = conv_cond_concat(x, y)
 
-            x = conv2d(x, num_filters=128, filter_size=3, param_attr=wn(), act='lrelu', reuse=reuse)
-            x = conv_cond_concat(x, y)
-            x = conv2d(x, num_filters=128, filter_size=3, param_attr=wn(), act='lrelu', reuse=reuse)
-            x = conv_cond_concat(x, y)
+            x = conv2d(x, num_filters=128, filter_size=3, param_attr=None, act='lrelu', reuse=reuse)
+            # x = conv_cond_concat(x, y)
+            x = conv2d(x, num_filters=128, filter_size=3, param_attr=None, act='lrelu', reuse=reuse)
+            # x = conv_cond_concat(x, y)
             
             x = Global_Average_Pooling(x)
             x = flatten(x)
-            x = concat(x, y_)
+            x = fluid.layers.concat([x, y_], axis=1)
+            # x = concat(x, y_)
             #IcGAN 每一层都要concat一下
 
             # MLP??
@@ -127,27 +128,27 @@ class triple_gan(object):
         with fluid.unique_name.guard(name+'_'):
             x = gaussian_noise_layer(x, std=0.15)
             print("C input shape: ",x.shape)
-            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
+            x = conv2d(x, num_filters=128, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
             print("conv2d C shape: ",x.shape)
             x = max_pooling(x , pool_size=2, pool_stride=2)
             print("maxpool C shape:",x.shape)
             x = dropout (x, dropout_prob=0.5)
 
-            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
-            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
+            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
+            x = conv2d(x, num_filters=256, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
             x = max_pooling(x , pool_size=2, pool_stride=2)
             x = dropout(x, dropout_prob=0.5)
 
-            x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=wn(), reuse=reuse)
+            x = conv2d(x, num_filters=512, filter_size=3, act='lrelu', param_attr=None, reuse=reuse)
             print("C_conv2d7 ",x)
-            x = nin(x, 256, name='nin1', param_attr=wn(), act='lrelu', reuse=reuse)
-            x = nin(x, 128, name='nin2', param_attr=wn(), act='lrelu', reuse=reuse)
+            x = nin(x, 256, name='nin1', param_attr=None, act='lrelu', reuse=reuse)
+            x = nin(x, 128, name='nin2', param_attr=None, act='lrelu', reuse=reuse)
             x = Global_Average_Pooling(x)
             x = flatten(x)
-            x = fc(x, 10, param_attr=wn(), reuse=reuse)
+            x = fc(x, 10, param_attr=None, reuse=reuse)
             out = softmax(x)
 
             return x, out
@@ -216,6 +217,7 @@ class triple_gan(object):
 
             print(self.inputs)
             D_real, D_real_logits, _ = self.D(self.inputs, self.y, is_test=False)
+            print(D_real)
             G_train = self.G(self.z, self.y, is_test=False)
             print(G_train)
             D_fake, D_fake_logits, _ = self.D(G_train, self.y, is_test=False, reuse=True)
@@ -224,12 +226,15 @@ class triple_gan(object):
 
 
 
-            # ones_real = fluid.layers.fill_constant_batch_size_like(D_real, shape=[-1, 1], dtype='float32', value=1)
-            # zeros_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
-            # zeros_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=1)
-            ones_real = ones(D_real.shape)
-            zeros_fake = zeros(D_fake.shape)
-            zeros_cla = zeros(D_cla.shape)
+            ones_real = fluid.layers.fill_constant_batch_size_like(D_real, shape=[-1, 1], dtype='float32', value=1)
+            zeros_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=0)
+            zeros_cla = fluid.layers.fill_constant_batch_size_like(D_cla, shape=[-1, 1], dtype='float32', value=0)
+            # ones_real = ones(D_real.shape)
+            # ones_real.stop_gradient = True
+            # zeros_fake = zeros(D_fake.shape)
+            # zeros_fake.stop_gradient = True
+            # zeros_cla = zeros(D_cla.shape)
+            # zeros_cla.stop_gradient = True
 
             ce_real = fluid.layers.sigmoid_cross_entropy_with_logits(x=D_real_logits, label=ones_real)
             ce_fake = fluid.layers.sigmoid_cross_entropy_with_logits(x=D_fake_logits, label=zeros_fake)
@@ -238,8 +243,8 @@ class triple_gan(object):
             d_loss_real = fluid.layers.reduce_mean(ce_real)
             d_loss_fake = (1 - alpha) * fluid.layers.reduce_mean(ce_fake)
             d_loss_cla = alpha * fluid.layers.reduce_mean(ce_cla)
-            d_R_F_loss = fluid.layers.elementwise_add(d_loss_real, d_loss_fake)
-            d_loss = fluid.layers.elementwise_add(d_R_F_loss, d_loss_cla)
+            # d_R_F_loss = fluid.layers.elementwise_add(d_loss_real, d_loss_fake)
+            d_loss = d_loss_real + d_loss_fake + d_loss_cla
 
             d_parameters = self.get_params(d_program, prefix='D')
             # d_all_params = d_program.global_block().all_parameters()
@@ -301,7 +306,7 @@ class triple_gan(object):
             # self.c_loss = alpha * c_loss_dis + R_L + self.alpha_p*R_P
 
             # R_UL = self.unsup_weight * tf.reduce_mean(tf.squared_difference(Y_c, self.unlabelled_inputs_y))
-            self.c_loss = alpha_cla_adv * alpha * c_loss_dis + R_L + self.alpha_p*R_P
+            c_loss = alpha_cla_adv * alpha * c_loss_dis + R_L + self.alpha_p*R_P
 
 
         with fluid.program_guard(g_program):
@@ -317,7 +322,7 @@ class triple_gan(object):
             # ones_fake = fluid.layers.fill_constant_batch_size_like(D_fake, shape=[-1, 1], dtype='float32', value=1)
             ones_fake = ones(D_fake.shape)
             ce_fake_g = fluid.layers.sigmoid_cross_entropy_with_logits(x=D_fake_logits, label=ones_fake)
-            self.g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
+            g_loss = (1 - alpha) * fluid.layers.reduce_mean(ce_fake_g)
 
         d_parameters = self.get_params(d_program, prefix='D')
         d_all_params = d_program.global_block().all_parameters()
@@ -394,19 +399,18 @@ class triple_gan(object):
                 batch_z = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
 
                 feed_dict = {
-                    self.inputs: batch_images, self.y: batch_codes,
-                    self.unlabelled_inputs: batch_unlabelled_images,
+                    'real_images': batch_images, 'y': batch_codes,
+                    'unlabelled_images': batch_unlabelled_images,
                     # self.unlabelled_inputs_y: batch_unlabelled_images_y,
-                    self.z: batch_z, self.alpha_p: alpha_p,
-                    self.gan_lr: gan_lr, self.cla_lr: cla_lr
+                    'z': batch_z
                     # self.unsup_weight : unsup_weight
                 }
                 # update D network
                 # _, summary_str, d_loss = self.sess.run([self.d_optim, self.d_sum, self.d_loss], feed_dict=feed_dict)
                 # self.writer.add_summary(summary_str, counter)
-                d_loss = self.exe.run(d_program, feed=feed_dict, fetch_list={self.d_loss})
-                g_loss = self.exe.run(g_program, feed=feed_dict, fetch_list={self.g_loss})
-                c_loss = self.exe.run(c_program, feed=feed_dict, fetch_list={self.c_loss})
+                d_loss = self.exe.run(d_program, feed=feed_dict, fetch_list=[d_loss])
+                g_loss = self.exe.run(g_program, feed=feed_dict, fetch_list=[g_loss])
+                c_loss = self.exe.run(c_program, feed=feed_dict, fetch_list=[c_loss])
 
 
                 # # update G network
