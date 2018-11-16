@@ -3,8 +3,9 @@
 import cifar10
 from paddleops import *
 import time
+import paddle.v2 as paddle
 import paddle.fluid as fluid
-import paddle
+
 from utils import *
 
 class triple_gan(object):
@@ -63,33 +64,33 @@ class triple_gan(object):
             x = dropout(x, dropout_prob=0.2, is_test=is_test)
             # x = reshape(x, [-1, 32, 32, 3])--->[-1,3,32,32]
             y = reshape(y_, [-1, self.y_dim, 1, 1]) #ten classes
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
             #weight norm in paddlepaddle has finished
             print("convbefore!!!!!!!:",x)
             x = conv2d(x, num_filters=32, filter_size=3, 
                             param_attr=None, act='lrelu', reuse=reuse)
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=32, filter_size=3, stride=2, 
                             param_attr=None, act='lrelu', reuse=reuse)
             print("D,con2d_2 shape:",x.shape)
             x = dropout(x, dropout_prob=0.2)
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
 
             x = conv2d(x, num_filters=64, filter_size=3, param_attr=None, act='lrelu', reuse=reuse)
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=64, filter_size=3, stride=2, param_attr=None, act='lrelu', reuse=reuse)
             x = dropout(x, dropout_prob=0.2)
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
 
             x = conv2d(x, num_filters=128, filter_size=3, param_attr=None, act='lrelu', reuse=reuse)
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
             x = conv2d(x, num_filters=128, filter_size=3, param_attr=None, act='lrelu', reuse=reuse)
-            # x = conv_cond_concat(x, y)
+            x = conv_cond_concat(x, y)
             
             x = Global_Average_Pooling(x)
             x = flatten(x)
             x = fluid.layers.concat([x, y_], axis=1)
-            # x = concat(x, y_)
+            x = concat(x, y_)
             #IcGAN 每一层都要concat一下
 
             # MLP??
@@ -177,33 +178,6 @@ class triple_gan(object):
         test_bs = self.test_batch_size
         alpha = self.alpha
         alpha_cla_adv = self.alpha_cla_adv
-
-        def declare_data(self):
-            # images
-            # self.inputs = fluid.layers.data(shape=[bs] + image_dims, name='real_images')
-            self.inputs = fluid.layers.data(shape=image_dims, name='real_images')
-            print("self.inputs: ", self.inputs)
-            # self.unlabelled_inputs = fluid.layers.data(shape=[unlabel_bs] + image_dims, name='unlabelled_images')
-            self.unlabelled_inputs = fluid.layers.data(shape=image_dims, name='unlabelled_images')
-            # self.test_inputs = fluid.layers.data(shape=[test_bs] + image_dims, name='test_images')
-            self.test_inputs = fluid.layers.data(shape=image_dims, name='test_images')#nouse
-            # labels
-            # self.y = fluid.layers.data(shape=[bs, self.y_dim], name='y')
-            self.y = fluid.layers.data(shape=[self.y_dim], name='y')
-            # self.unlabelled_inputs_y = fluid.layers.data(shape=[unlabel_bs, self.y_dim], name='unlabelled_images_y')
-            self.unlabelled_inputs_y = fluid.layers.data(shape=[self.y_dim], name='unlabelled_images_y')#nouse
-            # self.test_label = fluid.layers.data(shape=[test_bs, self.y_dim], name='test_label')
-            self.test_label = fluid.layers.data(shape=[self.y_dim], name='test_label')#nouse
-            # self.visual_y = fluid.layers.data(shape=[self.visual_num, self.y_dim], name='visual_y')
-            self.visual_y = fluid.layers.data(shape=[self.y_dim], name='visual_y')
-
-            # noises
-            # self.z = fluid.layers.data(shape=[bs, self.z_dim], name='z')
-            self.z = fluid.layers.data(shape=[self.z_dim], name='z')
-            # self.visual_z = fluid.layers.data(shape=[self.visual_num, self.z_dim], name='visual_z')
-            self.visual_z = fluid.layers.data(shape=[self.z_dim], name='visual_z')
-
-        declare_data(self)
         d_program = fluid.Program()
         g_program = fluid.Program()
         c_program = fluid.Program()

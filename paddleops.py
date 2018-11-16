@@ -1,4 +1,4 @@
-import paddle
+import paddle.v2 as paddle
 import paddle.fluid as fluid
 import inspect
 import numpy as np
