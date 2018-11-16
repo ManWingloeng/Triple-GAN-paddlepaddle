@@ -3,14 +3,12 @@ Simple paddlepaddle implementation of [Triple Generative Adversarial Nets](https
 
 If you want to see the original author's code, please refer to this [link](https://github.com/zhenxuan00/triple-gan)
 
-## Issue
-* I am now modifying the ***weight normalization*** (If you know how to implement with tensorflow, let me know)
 
 ## Usage
 ```bash
-> python main.py --n 4000 --epoch 1000 --batch_size 20 --unlabel_batch_size 250 --z_dim 100
+> python triple_gan.py
 ```
-* See `main.py` for other arguments.
+
 
 ## Idea
 ### Network Architecture

@@ -100,10 +100,9 @@ ENV/
 # mypy
 .mypy_cache/
 
-.TripleGAN
+TripleGAN.py
 /result
 /logs
-/assests
 /log
 reader.py
 .idea
@@ -111,3 +110,4 @@ reader.py
 triple_gan.ipynb
 tpgan.py
 ops.py
+main.py
