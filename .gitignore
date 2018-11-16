@@ -99,3 +99,15 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+.TripleGAN
+/result
+/logs
+/assests
+/log
+reader.py
+.idea
+.vscode
+triple_gan.ipynb
+tpgan.py
+ops.py
